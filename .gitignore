@@ -6,3 +6,4 @@ jobs/_export/
 jobs/*/chatgpt_bundle.zip
 .env
 .env.*
+tmp/
