@@ -1,0 +1,12 @@
+# Runtime maps and generated images are mounted, never baked into Docker.
+.git
+.venv
+__pycache__
+.pytest_cache
+jobs
+tmp
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.webp
+*.zip

@@ -557,7 +557,8 @@ def _hard_diagonal_corner(region, diagonal, corner, overlap):
 
 def reconcile_diagonal_corners(region, job, meta, layout):
     """Hard-cut against already-published diagonal cells that physically overlap."""
-    jobs_root = Path(meta.get('jobs_root') or job.parent).resolve()
+    # An old absolute jobs_root points to the host, not the Docker mount.
+    jobs_root = job.parent.resolve()
     regions = discover(jobs_root)
     tx = int(meta['target']['x'])
     ty = int(meta['target']['y'])

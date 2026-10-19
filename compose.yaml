@@ -1,0 +1,9 @@
+services:
+  generator:
+    build: .
+    working_dir: /app
+    volumes:
+      - ./jobs:/app/jobs
+      - ./providers:/app/providers:ro
+    environment:
+      FRONTIER_GENERATOR_COMMAND: ${FRONTIER_GENERATOR_COMMAND:-}
