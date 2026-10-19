@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "format": "local_tile_v1",
+  "id": "north_01",
+  "x": 0,
+  "y": -1,
+  "image": "tile.png",
+  "layout": {
+    "version": 1,
+    "width": 1672,
+    "height": 941,
+    "overlap": 256
+  },
+  "primary_side": "south",
+  "primary_neighbor": "center",
+  "dependencies": [
+    "center",
+    "west_01"
+  ],
+  "diagonal_dependencies": [
+    "west_01"
+  ]
+}

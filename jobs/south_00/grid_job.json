@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "method": "local_tile_v1",
+  "region_id": "south_00",
+  "jobs_root": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs",
+  "target": {
+    "x": 0,
+    "y": 1
+  },
+  "layout": {
+    "version": 1,
+    "width": 1672,
+    "height": 941,
+    "overlap": 256
+  },
+  "primary_side": "north",
+  "primary_neighbor": {
+    "id": "center",
+    "x": 0,
+    "y": 0,
+    "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center/region.png",
+    "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center",
+    "dependencies": []
+  },
+  "neighbors": {
+    "north": {
+      "id": "center",
+      "x": 0,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center/region.png",
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center",
+      "dependencies": []
+    }
+  },
+  "neighbor_files": {
+    "north": "input/source_region_native.png"
+  },
+  "secondary_neighbors": {},
+  "target_region_size": [
+    1672,
+    941
+  ],
+  "expected_generation_size": [
+    1672,
+    941
+  ],
+  "core": 685,
+  "overlap": 256,
+  "context": 685,
+  "primary_context_size": [
+    1672,
+    941
+  ],
+  "fixed_primary_overlap": true,
+  "workflow": "chatgpt_tile_canvas_v1"
+}

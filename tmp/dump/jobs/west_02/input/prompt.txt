@@ -1,0 +1,54 @@
+Create one continuous regional map expansion for The Frontier.
+
+CANVAS:
+- Size: 1996x853
+- Layout: [ NEW CORE ][ SHARED OVERLAP ][ SOURCE CONTEXT ]
+- NEW CORE: 1040px
+- SHARED OVERLAP: 256px
+- SOURCE CONTEXT: 700px
+- Expansion direction: left
+- Existing Ravenfall context is on the right side.
+
+GOAL:
+Extend the existing Ravenfall Valley landscape naturally toward the left.
+The full image must read as one uninterrupted regional map.
+
+SHARED OVERLAP:
+The SHARED OVERLAP is intentionally generated together with the NEW CORE.
+It must visually match the neighboring SOURCE CONTEXT so the two versions can later be stitched inside this overlap area.
+Do not create a visible vertical boundary at either side of the overlap.
+
+CONTINUITY:
+- same high oblique 3/4 aerial regional map perspective
+- same painterly realistic medieval frontier style
+- same terrain scale
+- same forest density logic
+- same road scale
+- same water scale
+- same lighting direction
+- same atmospheric depth
+- continue ridges, forests, roads, rivers, cliffs and valleys naturally
+- maintain consistent object scale and perspective
+
+NEW REGION CHARACTER:
+- northern temperate frontier landscape
+- conifer forests dominant
+- open forest patches and natural meadows
+- rolling terrain with rocky ridges and stony outcrops
+- sparse frontier traces
+- no large city
+- at most one subtle remote landmark
+
+STRICT:
+- no UI
+- no labels
+- no borders
+- no map markers
+- no text
+- no mirrored copy of Ravenfall
+- no hard seam
+- no abrupt color or density change
+- do not treat SOURCE CONTEXT as a separate panel
+
+FINAL RESULT:
+A seamless neighboring region where NEW CORE flows through SHARED OVERLAP into SOURCE CONTEXT as one continuous handcrafted world map scene.

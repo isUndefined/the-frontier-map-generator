@@ -1,0 +1,15 @@
+Create one continuous regional map expansion for The Frontier.
+Canvas size: 2372x941. Return exactly this size.
+New tile size (including shared overlap): 1672x941.
+Primary existing neighbor: EAST. Shared overlap: 256px.
+Existing neighbors: east=center.
+Use generation_canvas.png and generation_mask.png: white means generate,
+black means preserve exactly, including the shared overlap. Do not redraw,
+shift, scale or reinterpret any unmasked terrain. Extend rivers, roads and ridges
+from their exact positions at the fixed edge into the new area.
+Use context_board.png and input/neighbors references
+for continuity with every existing neighbor. Neighbor images share 256px
+with the corresponding edge of the new tile.
+Preserve camera, terrain scale, lighting, rivers, roads, forest density and style.
+High oblique 3/4 aerial regional map, realistic painterly medieval frontier.
+No UI, text, labels, borders, markers, mirrored copies or panel divisions.

@@ -1,0 +1,20 @@
+Create one continuous regional map expansion for The Frontier.
+Return exactly one new tile image sized 1672x941. Do NOT return the larger world,
+do NOT add blank margins, and do NOT change the aspect ratio.
+Primary existing neighbor: EAST. Shared overlap: 256px.
+Use generation_canvas.png and generation_mask.png: white means generate,
+black means preserve exactly, including the shared overlap strip.
+Do not redraw, shift, scale or reinterpret any black-masked pixels.
+
+Additional reference:
+- primary_context.png shows extra terrain context from the primary neighbor
+  beyond the overlap (700px of extra context).
+- source_region_native.png is the full primary neighbor tile.
+- context_board.png and input/neighbors/* show any other existing neighbors.
+
+Continue rivers, roads, ridges, forests and settlements naturally from the
+primary neighbor into the new territory. The border touching the primary
+neighbor must connect cleanly and continue the same geography.
+Preserve camera, terrain scale, lighting, rivers, roads, forest density and style.
+High oblique 3/4 aerial regional map, realistic painterly medieval frontier.
+No UI, text, labels, borders, markers, mirrored copies or panel divisions.

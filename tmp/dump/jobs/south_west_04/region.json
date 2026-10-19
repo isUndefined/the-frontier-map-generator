@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "id": "south_west_04",
+  "x": -4,
+  "y": 1,
+  "image": "stitched/region_with_primary_overlap.png",
+  "source": "build_grid_from_jobs"
+}

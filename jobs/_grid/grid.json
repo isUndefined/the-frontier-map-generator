@@ -1,0 +1,88 @@
+{
+  "format": "local_tile_v1",
+  "compositor": "narrow_min_cost_seam_v2_edge_penalty",
+  "feather": 6,
+  "edge_penalty_strength": 55.0,
+  "layout": {
+    "version": 1,
+    "width": 1672,
+    "height": 941,
+    "overlap": 256
+  },
+  "size": [
+    3088,
+    2311
+  ],
+  "origin": [
+    1416,
+    685
+  ],
+  "regions": [
+    {
+      "id": "center",
+      "x": 0,
+      "y": 0,
+      "pixel_x": 1416,
+      "pixel_y": 685,
+      "image": "center/region.png",
+      "seams_with_placed_neighbors": []
+    },
+    {
+      "id": "south_00",
+      "x": 0,
+      "y": 1,
+      "pixel_x": 1416,
+      "pixel_y": 1370,
+      "image": "south_00/tile.png",
+      "seams_with_placed_neighbors": [
+        "north"
+      ]
+    },
+    {
+      "id": "west_01",
+      "x": -1,
+      "y": 0,
+      "pixel_x": 0,
+      "pixel_y": 685,
+      "image": "west_01/tile.png",
+      "seams_with_placed_neighbors": [
+        "east"
+      ]
+    },
+    {
+      "id": "north_01",
+      "x": 0,
+      "y": -1,
+      "pixel_x": 1416,
+      "pixel_y": 0,
+      "image": "north_01/tile.png",
+      "seams_with_placed_neighbors": [
+        "south"
+      ]
+    },
+    {
+      "id": "south_01",
+      "x": -1,
+      "y": 1,
+      "pixel_x": 0,
+      "pixel_y": 1370,
+      "image": "south_01/tile.png",
+      "seams_with_placed_neighbors": [
+        "east",
+        "north"
+      ]
+    },
+    {
+      "id": "north_02",
+      "x": -1,
+      "y": -1,
+      "pixel_x": 0,
+      "pixel_y": 0,
+      "image": "north_02/tile.png",
+      "seams_with_placed_neighbors": [
+        "east",
+        "south"
+      ]
+    }
+  ]
+}

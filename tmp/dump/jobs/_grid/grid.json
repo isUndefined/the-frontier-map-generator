@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "center_definition": "original starting map",
+  "regions": [
+    {
+      "id": "west_04",
+      "x": -3,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_04/.region_cache/region.png",
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_04"
+    },
+    {
+      "id": "west_03",
+      "x": -2,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_03/.region_cache/region.png",
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_03"
+    },
+    {
+      "id": "west_02",
+      "x": -1,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_02/.region_cache/region.png",
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_02"
+    },
+    {
+      "id": "center",
+      "x": 0,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center/region.png",
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center"
+    },
+    {
+      "id": "south_west_04",
+      "x": -4,
+      "y": 1,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/south_west_04/stitched/region_with_primary_overlap.png",
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/south_west_04"
+    }
+  ]
+}

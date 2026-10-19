@@ -1,0 +1,61 @@
+{
+  "format": "local_tile_v1",
+  "generated_size": [
+    1991,
+    789
+  ],
+  "normalized_generation_size": [
+    2372,
+    941
+  ],
+  "tile_size": [
+    1672,
+    941
+  ],
+  "feather": 3,
+  "merged_sides": [
+    "east"
+  ],
+  "anchor_mae": 44.443416595458984,
+  "anchor_changed": true,
+  "draft": false,
+  "fixed_primary_overlap": false,
+  "alignment": {
+    "method": "sift_affine_adaptivewarp",
+    "matches": 338,
+    "inliers": 210,
+    "seam_inliers": 51,
+    "reference_to_generated": [
+      [
+        0.9862876608449856,
+        0.0007258102489128207,
+        22.18883555195999
+      ],
+      [
+        -0.0007959263786765284,
+        0.9464328415386798,
+        -0.22034919000791087
+      ]
+    ],
+    "median_landmark_error_px": 1.2747362975494267,
+    "p95_landmark_error_px": 2.5328601201149996,
+    "anchor_mae_before": 44.443416595458984,
+    "anchor_mae_after": 24.6146240234375,
+    "affine_anchor_mae_after": 24.893157958984375,
+    "local_warp": {
+      "applied": true,
+      "method": "farneback_adaptive_local_seam",
+      "transition_px": 220,
+      "seam_coordinate_px": 1418,
+      "flow_p95_px": 3.4428517818450928,
+      "confidence_mean": 0.31232479214668274,
+      "confidence_p10": 0.15000000596046448,
+      "confidence_p90": 0.6316047310829163,
+      "mae_before": 21.04880714416504,
+      "mae_after": 20.01082992553711
+    },
+    "max_reflected_border_px": 1.3481768369674683,
+    "note": "Local warp is conservative and only accepted when it improves seam agreement.",
+    "status": "accepted"
+  }
+}

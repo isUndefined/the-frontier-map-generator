@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "method": "local_tile_v1",
+  "region_id": "west_01",
+  "jobs_root": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs",
+  "target": {
+    "x": -1,
+    "y": 0
+  },
+  "layout": {
+    "version": 1,
+    "width": 1672,
+    "height": 941,
+    "overlap": 256
+  },
+  "primary_side": "east",
+  "primary_neighbor": {
+    "id": "center",
+    "x": 0,
+    "y": 0,
+    "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center/region.png",
+    "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center",
+    "dependencies": []
+  },
+  "neighbors": {
+    "east": {
+      "id": "center",
+      "x": 0,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center/region.png",
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center",
+      "dependencies": []
+    }
+  },
+  "neighbor_files": {
+    "east": "input/source_region_native.png"
+  },
+  "secondary_neighbors": {},
+  "target_region_size": [
+    1672,
+    941
+  ],
+  "expected_generation_size": [
+    2372,
+    941
+  ],
+  "core": 1416,
+  "overlap": 256,
+  "context": 700,
+  "fixed_primary_overlap": true
+}

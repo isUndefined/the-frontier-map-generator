@@ -1,0 +1,34 @@
+Create one continuous regional map expansion for The Frontier.
+
+PRIMARY GENERATION CONTRACT
+- Primary neighbor side: NORTH
+- Generator layout: [ SOURCE CONTEXT / SHARED OVERLAP / NEW CORE ] top-to-bottom
+- NEW CORE: 1040 px along the expansion axis
+- SHARED OVERLAP: 256 px
+- SOURCE CONTEXT: 700 px
+
+This PRIMARY layout deliberately preserves the proven SHARED OVERLAP workflow. Do not redesign its composition.
+The generated region must continue the primary neighbor as one uninterrupted map.
+
+ADDITIONAL EXISTING NEIGHBORS
+- none
+A context_board.png and individual neighbor reference images are supplied with this job. Use them as geographic continuity references for the corresponding edges and shared corner(s). Match roads, rivers, ridges, forest density, lighting, scale and terrain direction toward every existing neighbor.
+
+STYLE
+- same high oblique 3/4 aerial regional map perspective
+- realistic painterly medieval/frontier strategy-map style
+- northern temperate terrain, conifer forests, rocky ridges, rivers, roads, meadows and sparse frontier traces
+- same object scale, lighting direction and atmospheric depth
+
+SHARED OVERLAP
+Generate the overlap together with NEW CORE. It should be visually compatible with SOURCE CONTEXT so minimum-cost stitching can choose an invisible path inside the overlap.
+
+STRICT
+- no UI, text, labels, borders or map markers
+- no mirrored copy of an existing region
+- no hard vertical/horizontal split
+- no abrupt palette, scale, forest-density or terrain change
+- preserve continuity toward every supplied neighbor
+
+FINAL RESULT
+One handcrafted continuous world-map region that can be stitched to the primary neighbor and visually continues all additional neighboring regions.

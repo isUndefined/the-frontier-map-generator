@@ -1,0 +1,39 @@
+{
+  "format": "local_tile_v1",
+  "generated_size": [
+    1672,
+    941
+  ],
+  "normalized_generation_size": [
+    1672,
+    941
+  ],
+  "tile_size": [
+    1672,
+    941
+  ],
+  "workflow": "chatgpt_tile_canvas_v1",
+  "feather": 4,
+  "merged_sides": [
+    "east",
+    "north"
+  ],
+  "anchor_mae": 55.6551399230957,
+  "anchor_changed": true,
+  "draft": true,
+  "fixed_primary_overlap": false,
+  "primary_overlap_restored": false,
+  "primary_overlap_transition_px": 0,
+  "exact_primary_boundary_px": 0,
+  "alignment_method": "unaligned_chatgpt_fallback",
+  "registration_applied": false,
+  "alignment": {
+    "method": "unaligned_chatgpt_fallback",
+    "status": "accepted",
+    "reason": "Bounded translation correlation too weak (-0.014)",
+    "anchor_mae_before": 55.6551399230957,
+    "anchor_mae_after": 55.6551399230957,
+    "registration_applied": false,
+    "safe_publish_reason": "ChatGPT workflow restores/blends the primary overlap from the existing neighbor instead of trusting the redrawn anchor."
+  }
+}

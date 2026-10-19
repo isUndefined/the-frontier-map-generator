@@ -1,0 +1,49 @@
+Create one continuous regional map expansion for The Frontier.
+Return exactly one new tile image sized 1672x941. Do NOT return the larger world,
+do NOT add blank margins, and do NOT change the aspect ratio.
+Primary existing neighbor: SOUTH. Shared overlap: 256px.
+Known neighbors around the new tile: SOUTH=center.
+Use generation_canvas.png and generation_mask.png: white means generate,
+black means preserve exactly. Every black strip already comes from a real existing neighbor.
+Do not redraw, shift, scale or reinterpret any black-masked pixels.
+Fixed overlap sides in the canvas: SOUTH.
+
+Additional references:
+- source_region_native.png is the full primary neighbor tile (SOUTH).
+- the SOUTH side is the main terrain authority: inherit its large landforms first, then introduce new variation deeper inside the tile.
+- primary_context.png shows extra context beyond the primary overlap (685px).
+- where the SOUTH border approaches a diagonal-corner reference, keep the primary overlap exact and generate a gradual bridge toward the diagonal terrain mass and cloud flow.
+
+Critical diagonal corner references:
+- diagonal tiles are visual/compositional references only; they are NOT black/preserve pixels in generation_canvas.png.
+- use them to continue corner-specific terrain masses and cloud/fog flow, but do not paste or rigidly reproduce the diagonal tile.
+- keep the primary/cardinal black overlap exact.
+
+Corner bridge rule:
+- the model must create a natural bridge between the exact primary overlap and the diagonal reference.
+- the first 180–320 px inward from the relevant corner should favor continuation over novelty.
+- do not create a floating new plain, abrupt cliff break, pasted mountain block, or disconnected cloud bank beside the corner.
+- if the diagonal shows mountains and clouds near the corner, continue those masses/directions smoothly into the new tile while still honoring the primary overlap.
+- SOUTHWEST: west_01; full tile=input/diagonals/southwest.png; corner context=input/diagonals/southwest_corner_context.png.
+- SOUTHWEST bridge guide: input/diagonals/southwest_bridge_guide.png. The new tile lies ABOVE this guide, especially above the inner junction near the top-center.
+
+Highest priority: the new tile must continue smoothly from EVERY existing neighbor,
+not only from the primary one. Respect all fixed overlap strips simultaneously.
+Large-scale terrain continuity is mandatory, not optional.
+- treat preserved borders as the start of real landforms, not just color references.
+- if a preserved border contains a mountain wall, ridge chain, cliff band, steep slope or foothill system, continue that terrain mass naturally into the white area.
+- do NOT let mountains abruptly stop at the border and immediately switch to a wide new flat plain, open basin or unrelated terrain regime.
+- mountain masses should continue, branch, step down through foothills, open into passes, or gradually descend into valleys.
+- rivers, lakes and coastlines must respect the existing relief; do not create floating-looking terrain shelves.
+- keep the perceived elevation structure coherent across the border: ridge direction, valley depth, foothills and foreground scale must stay believable.
+- clouds or fog may continue across the border, but they must not be used to hide a broken terrain transition.
+For every diagonal corner reference, preserve terrain logic and cloud flow continuity: continue the visible ridge direction, foothill structure, forest masses and cloud banks into the new territory without literal copy-pasting.
+Use any *_bridge_guide.png as the strongest clue for the troublesome corner transition: it shows the already-existing junction around the target, and the new tile should feel like a believable continuation away from that junction.
+
+Special landmark plan:
+- cluster: none for this tile
+- rule: avoid introducing a major landmark; keep this tile as a transition or standard region.
+Continue rivers, roads, ridges, coastlines, forests and settlements naturally into the new territory.
+Preserve camera, terrain scale, lighting, river width, forest density and overall style.
+High oblique 3/4 aerial regional map, realistic painterly medieval frontier.
+No UI, text, labels, borders, markers, mirrored copies or panel divisions.

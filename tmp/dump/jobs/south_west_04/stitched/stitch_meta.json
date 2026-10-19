@@ -1,0 +1,25 @@
+{
+  "generated_size": [
+    1011,
+    1556
+  ],
+  "expected_size": [
+    1295,
+    1996
+  ],
+  "scale_x": 0.7806949806949807,
+  "scale_y": 0.779559118236473,
+  "primary_side": "north",
+  "actual_core": 811,
+  "actual_overlap": 200,
+  "actual_context": 545,
+  "final_size": [
+    1011,
+    1477
+  ],
+  "region_size": [
+    1011,
+    1011
+  ],
+  "secondary_validation": {}
+}

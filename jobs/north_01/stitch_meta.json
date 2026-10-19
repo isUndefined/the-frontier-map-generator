@@ -1,0 +1,100 @@
+{
+  "format": "local_tile_v1",
+  "generated_size": [
+    1672,
+    941
+  ],
+  "normalized_generation_size": [
+    1672,
+    941
+  ],
+  "tile_size": [
+    1672,
+    941
+  ],
+  "workflow": "chatgpt_tile_canvas_v2",
+  "feather": 4,
+  "merged_sides": [
+    "south"
+  ],
+  "side_merge_report": [
+    {
+      "side": "south",
+      "order": 0,
+      "primary": true,
+      "method": "content_aware_hard_seam",
+      "seam_min_px": 75,
+      "seam_max_px": 190,
+      "seam_mean_px": 119.51076555023923,
+      "protected_from_overwrite": []
+    }
+  ],
+  "anchor_mae": 52.945133209228516,
+  "anchor_changed": true,
+  "draft": false,
+  "fixed_primary_overlap": true,
+  "primary_overlap_restored": true,
+  "primary_overlap_transition_px": 0,
+  "exact_primary_boundary_px": 0,
+  "primary_overlap_method": "content_aware_hard_seam",
+  "primary_overlap_broad_blend_disabled": true,
+  "corner_reconciliation": [
+    {
+      "corner": "southwest",
+      "diagonal_id": "west_01",
+      "diagonal_position": [
+        -1,
+        0
+      ],
+      "overlap_px": 256,
+      "seam_extent_px": 255,
+      "seam_pixels": 511,
+      "full_corner": true,
+      "outer_edges_owned_by_diagonal": true,
+      "method": "three_way_hard_corner_cloud_avoiding_v2"
+    }
+  ],
+  "alignment_method": "sift_affine_adaptivewarp",
+  "registration_applied": true,
+  "alignment": {
+    "method": "sift_affine_adaptivewarp",
+    "matches": 374,
+    "inliers": 339,
+    "seam_inliers": 339,
+    "reference_to_generated": [
+      [
+        0.9982528126269647,
+        0.0008338585151030704,
+        -3.2462275998912475
+      ],
+      [
+        0.00031213025355950313,
+        1.0037703856440725,
+        -61.081516725428486
+      ]
+    ],
+    "median_landmark_error_px": 1.1286456260231126,
+    "p95_landmark_error_px": 2.2621071264856627,
+    "anchor_mae_before": 52.945133209228516,
+    "anchor_mae_after": 20.711076736450195,
+    "affine_anchor_mae_after": 21.630876541137695,
+    "local_warp": {
+      "applied": true,
+      "method": "farneback_adaptive_local_seam",
+      "transition_px": 220,
+      "seam_coordinate_px": 687,
+      "flow_p95_px": 2.4461617469787598,
+      "confidence_mean": 0.3089752495288849,
+      "confidence_p10": 0.15000000596046448,
+      "confidence_p90": 0.6213838458061218,
+      "mae_before": 21.630876541137695,
+      "mae_after": 20.711076736450195
+    },
+    "max_reflected_border_px": 0.0,
+    "allowed_reflected_border_px": 20.48,
+    "affine_edge_fade_px": 128,
+    "affine_edge_fade_mode": "perpendicular_component_only",
+    "note": "Local warp is conservative and only accepted when it improves seam agreement.",
+    "status": "accepted"
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "method": "local_tile_v1",
+  "region_id": "north_01",
+  "jobs_root": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs",
+  "target": {
+    "x": 0,
+    "y": -1
+  },
+  "layout": {
+    "version": 1,
+    "width": 1672,
+    "height": 941,
+    "overlap": 256
+  },
+  "primary_side": "south",
+  "primary_neighbor": {
+    "id": "center",
+    "x": 0,
+    "y": 0,
+    "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center/region.png",
+    "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center",
+    "dependencies": []
+  },
+  "neighbors": {
+    "south": {
+      "id": "center",
+      "x": 0,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center/region.png",
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center",
+      "dependencies": []
+    }
+  },
+  "neighbor_files": {
+    "south": "input/source_region_native.png"
+  },
+  "secondary_neighbors": {},
+  "target_region_size": [
+    1672,
+    941
+  ],
+  "expected_generation_size": [
+    1672,
+    941
+  ],
+  "core": 685,
+  "overlap": 256,
+  "context": 685,
+  "neighbor_contexts": {
+    "south": {
+      "file": "input/primary_context.png",
+      "context_px": 685,
+      "size": [
+        1672,
+        941
+      ]
+    }
+  },
+  "corner_guides": [],
+  "diagonal_neighbors": {
+    "southwest": {
+      "version": 1,
+      "format": "local_tile_v1",
+      "id": "west_01",
+      "x": -1,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_01/tile.png",
+      "layout": {
+        "version": 1,
+        "width": 1672,
+        "height": 941,
+        "overlap": 256
+      },
+      "primary_side": "east",
+      "primary_neighbor": "center",
+      "dependencies": [
+        "center"
+      ],
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_01"
+    }
+  },
+  "diagonal_files": {
+    "southwest": "input/diagonals/southwest.png"
+  },
+  "diagonal_contexts": {
+    "southwest": {
+      "file": "input/diagonals/southwest_corner_context.png",
+      "size": [
+        941,
+        941
+      ],
+      "overlap_px": 256,
+      "neighbor_id": "west_01"
+    }
+  },
+  "diagonal_bridge_guides": {
+    "southwest": {
+      "file": "input/diagonals/southwest_bridge_guide.png",
+      "size": [
+        1140,
+        576
+      ],
+      "direction": "The new tile lies ABOVE this guide, especially above the inner junction near the top-center.",
+      "corner": "southwest",
+      "primary_side": "south"
+    }
+  },
+  "fixed_diagonal_corners": [],
+  "diagonal_reference_corners": [
+    "southwest"
+  ],
+  "diagonal_anchor_version": 5,
+  "diagonal_anchor_mode": "reference_only_soft_corner_bridge",
+  "terrain_continuity_version": 2,
+  "corner_influence_zone_px": [
+    180,
+    280
+  ],
+  "landmark_plan": {
+    "enabled": false,
+    "seed": "frontier_landmarks_v1",
+    "macro_size": 4
+  },
+  "fixed_sides": [
+    "south"
+  ],
+  "fixed_primary_overlap": true,
+  "workflow": "chatgpt_tile_canvas_v2"
+}

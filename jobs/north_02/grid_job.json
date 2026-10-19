@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "method": "local_tile_v1",
+  "region_id": "north_02",
+  "jobs_root": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs",
+  "target": {
+    "x": -1,
+    "y": -1
+  },
+  "layout": {
+    "version": 1,
+    "width": 1672,
+    "height": 941,
+    "overlap": 256
+  },
+  "primary_side": "east",
+  "primary_neighbor": {
+    "version": 1,
+    "format": "local_tile_v1",
+    "id": "north_01",
+    "x": 0,
+    "y": -1,
+    "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/north_01/tile.png",
+    "layout": {
+      "version": 1,
+      "width": 1672,
+      "height": 941,
+      "overlap": 256
+    },
+    "primary_side": "south",
+    "primary_neighbor": "center",
+    "dependencies": [
+      "center",
+      "west_01"
+    ],
+    "diagonal_dependencies": [
+      "west_01"
+    ],
+    "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/north_01"
+  },
+  "neighbors": {
+    "east": {
+      "version": 1,
+      "format": "local_tile_v1",
+      "id": "north_01",
+      "x": 0,
+      "y": -1,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/north_01/tile.png",
+      "layout": {
+        "version": 1,
+        "width": 1672,
+        "height": 941,
+        "overlap": 256
+      },
+      "primary_side": "south",
+      "primary_neighbor": "center",
+      "dependencies": [
+        "center",
+        "west_01"
+      ],
+      "diagonal_dependencies": [
+        "west_01"
+      ],
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/north_01"
+    },
+    "south": {
+      "version": 1,
+      "format": "local_tile_v1",
+      "id": "west_01",
+      "x": -1,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_01/tile.png",
+      "layout": {
+        "version": 1,
+        "width": 1672,
+        "height": 941,
+        "overlap": 256
+      },
+      "primary_side": "east",
+      "primary_neighbor": "center",
+      "dependencies": [
+        "center"
+      ],
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_01"
+    }
+  },
+  "neighbor_files": {
+    "east": "input/source_region_native.png",
+    "south": "input/neighbors/south.png"
+  },
+  "secondary_neighbors": {
+    "south": {
+      "version": 1,
+      "format": "local_tile_v1",
+      "id": "west_01",
+      "x": -1,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_01/tile.png",
+      "layout": {
+        "version": 1,
+        "width": 1672,
+        "height": 941,
+        "overlap": 256
+      },
+      "primary_side": "east",
+      "primary_neighbor": "center",
+      "dependencies": [
+        "center"
+      ],
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/west_01"
+    }
+  },
+  "target_region_size": [
+    1672,
+    941
+  ],
+  "expected_generation_size": [
+    1672,
+    941
+  ],
+  "core": 1416,
+  "overlap": 256,
+  "context": 700,
+  "neighbor_contexts": {
+    "east": {
+      "file": "input/primary_context.png",
+      "context_px": 700,
+      "size": [
+        956,
+        941
+      ]
+    },
+    "south": {
+      "file": "input/neighbors/south_context.png",
+      "context_px": 685,
+      "size": [
+        1672,
+        941
+      ]
+    }
+  },
+  "corner_guides": [
+    {
+      "file": "input/corner_guide_east_south.png",
+      "corner": "south_east",
+      "sides": [
+        "east",
+        "south"
+      ],
+      "size": [
+        1936,
+        1005
+      ]
+    }
+  ],
+  "diagonal_neighbors": {
+    "southeast": {
+      "id": "center",
+      "x": 0,
+      "y": 0,
+      "image": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center/region.png",
+      "job": "/home/iurie.nastasiu@work.deeplace.md/Downloads/shared_overlap_package/jobs/center",
+      "dependencies": []
+    }
+  },
+  "diagonal_files": {
+    "southeast": "input/diagonals/southeast.png"
+  },
+  "diagonal_contexts": {
+    "southeast": {
+      "file": "input/diagonals/southeast_corner_context.png",
+      "size": [
+        941,
+        941
+      ],
+      "overlap_px": 256,
+      "neighbor_id": "center"
+    }
+  },
+  "diagonal_bridge_guides": {
+    "southeast": {
+      "file": "input/diagonals/southeast_bridge_guide.png",
+      "size": [
+        576,
+        1140
+      ],
+      "direction": "The new tile lies LEFT of this guide, especially left of the inner junction near the center-left.",
+      "corner": "southeast",
+      "primary_side": "east"
+    }
+  },
+  "fixed_diagonal_corners": [],
+  "diagonal_reference_corners": [
+    "southeast"
+  ],
+  "diagonal_anchor_version": 5,
+  "diagonal_anchor_mode": "reference_only_soft_corner_bridge",
+  "terrain_continuity_version": 2,
+  "corner_influence_zone_px": [
+    180,
+    280
+  ],
+  "landmark_plan": {
+    "enabled": false,
+    "seed": "frontier_landmarks_v1",
+    "macro_size": 4
+  },
+  "fixed_sides": [
+    "east",
+    "south"
+  ],
+  "fixed_primary_overlap": true,
+  "workflow": "chatgpt_tile_canvas_v2"
+}

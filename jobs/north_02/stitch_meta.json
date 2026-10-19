@@ -1,0 +1,81 @@
+{
+  "format": "local_tile_v1",
+  "generated_size": [
+    1672,
+    941
+  ],
+  "normalized_generation_size": [
+    1672,
+    941
+  ],
+  "tile_size": [
+    1672,
+    941
+  ],
+  "workflow": "chatgpt_tile_canvas_v2",
+  "feather": 4,
+  "merged_sides": [
+    "east",
+    "south"
+  ],
+  "side_merge_report": [
+    {
+      "side": "east",
+      "order": 0,
+      "primary": true,
+      "method": "content_aware_hard_seam",
+      "seam_min_px": 109,
+      "seam_max_px": 192,
+      "seam_mean_px": 152.27948990435706,
+      "protected_from_overwrite": []
+    },
+    {
+      "side": "south",
+      "order": 1,
+      "primary": false,
+      "method": "soft_min_cost_seam",
+      "seam_min_px": 42,
+      "seam_max_px": 255,
+      "seam_mean_px": 161.64294258373207,
+      "protected_from_overwrite": [
+        "southeast"
+      ]
+    }
+  ],
+  "anchor_mae": 53.83235549926758,
+  "anchor_changed": true,
+  "draft": false,
+  "fixed_primary_overlap": true,
+  "primary_overlap_restored": true,
+  "primary_overlap_transition_px": 0,
+  "exact_primary_boundary_px": 0,
+  "primary_overlap_method": "content_aware_hard_seam",
+  "primary_overlap_broad_blend_disabled": true,
+  "corner_reconciliation": [
+    {
+      "corner": "southeast",
+      "diagonal_id": "center",
+      "diagonal_position": [
+        0,
+        0
+      ],
+      "overlap_px": 256,
+      "seam_extent_px": 255,
+      "seam_pixels": 511,
+      "full_corner": true,
+      "outer_edges_owned_by_diagonal": true,
+      "method": "three_way_hard_corner_cloud_avoiding_v2"
+    }
+  ],
+  "alignment_method": "unaligned_chatgpt_fallback",
+  "registration_applied": false,
+  "alignment": {
+    "method": "unaligned_chatgpt_fallback",
+    "status": "accepted",
+    "reason": "Terrain matches are too concentrated to align the full anchor",
+    "anchor_mae_before": 53.83235549926758,
+    "anchor_mae_after": 53.83235549926758,
+    "registration_applied": false,
+    "safe_publish_reason": "ChatGPT workflow restores/blends the primary overlap from the existing neighbor instead of trusting the redrawn anchor."
+  }
+}
