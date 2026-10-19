@@ -1,79 +1,62 @@
-# Docker world generator: automatic OpenAI Image Edit
+# The Frontier — ChatGPT art handoff (без API)
 
-Incremental map extension publishes local tiles, never a giant panorama.
-The existing prepare/stitch pipeline remains authoritative.
+`docker compose` **не делает платных запросов** к OpenAI и не вызывает локальную
+AI-модель. Он готовит один ZIP для генерации изображения вручную в ChatGPT.
+Остальные стадии (проверка соседей, склейка, экспорт) автоматизированы.
 
-## Setup
+## Новый чанк
 
-```sh
-cp .env.example .env
-# Set OPENAI_API_KEY in the local, untracked .env
+```bash
 docker compose build generator
-docker compose run --rm generator status
-docker compose run --rm generator expand --direction west --dry-run
+docker compose run --rm generator expand --direction west --provider chatgpt
 ```
 
-The API is paid separately from ChatGPT. API key and model availability are
-required. Default model: `gpt-image-2.5-sunburst`, quality: `high`.
-Alternative: `gpt-image-2.5-flare`.
+Результат — `jobs/<job>/chatgpt_bundle.zip`. Внутри:
 
-## Expand in one command
+- `CHATGPT_INSTRUCTIONS.md` — как генерировать, фиксированный размер и основной prompt;
+- `input/generation_canvas.png`, `generation_mask.png`, `prompt.txt`, `context_board.png`;
+- все доступные референсы соседей и диагоналей из `input/`;
+- `job_info.json` — координаты и размер холста без абсолютных путей.
 
-```sh
-docker compose run --rm generator expand --direction west
+Загрузи ZIP в ChatGPT. Попроси нарисовать **одну новую карту** в размере,
+указанном в инструкциях, строго без изменения закреплённых пикселей.
+ChatGPT не гарантирует точный размер вывода или пиксельную неизменность;
+проверь результат. Docker **не увеличивает и не уменьшает** PNG молча.
+
+Сохрани PNG как `jobs/<job>/generated.png`. Затем:
+
+```bash
+docker compose run --rm generator finalize --job <job> --draft
+docker compose run --rm generator finalize --job <job>
 ```
 
-The command prepares neighboring visual context, mask and prompt,
-calls OpenAI Images Edit, validates the result, restores fixed anchor pixels,
-then stitches, publishes and exports standalone browser tiles plus manifest.
-If the request or validation fails, the job stays pending.
+`--draft` создаёт черновик, но не публикует. Обычный `finalize` проверяет
+разрешение, стык и записывает независимый `tile.png` и WebP-экспорт.
+При несовпадении размера CLI возвращает ошибку; существующая карта не меняется.
 
-## Resume the already prepared job
+## Для уже подготовленного tile_x-2_y+0
 
-You previously created `jobs/tile_x-2_y+0/input/`. Do NOT run expand again:
-the target location is already pending. Run:
+Не запускай `expand` снова. Подготовленные изображения остаются пригодными:
 
-```sh
-docker compose run --rm generator finalize --job tile_x-2_y+0
+```bash
+docker compose run --rm generator pack --job tile_x-2_y+0
 ```
 
-This calls the provider if `generated.png` is absent, and then publishes.
-For a non-publishing visual inspection:
+Загрузи `jobs/tile_x-2_y+0/chatgpt_bundle.zip` сюда. После генерации
+помести `generated.png` в `jobs/tile_x-2_y+0/` и запусти `finalize`.
 
-```sh
-docker compose run --rm generator finalize --job tile_x-2_y+0 --draft
-```
+## Export без огромной склеенной карты
 
-If a generated.png is already present, finalize reuses it. A failed API
-call leaves the prepared job for retry. No API call happens with --dry-run.
-
-## Native-size policy
-
-The original generation canvas is **never resized or resampled**.
-Only enough extra pixels are appended to make its dimensions multiples of 16.
-For example 2372×941 becomes 2384×944. The response must be exactly that
-size or it is rejected. The padding is cropped (not resized) back to the
-original dimensions. Black Frontier mask pixels are restored exactly from
-the original source. Areas larger or smaller than allowed by the model are
-rejected rather than rescaled.
-
-The model may still fail to continue a road, river or cliff correctly, even
-when the fixed pixels match; validate the art before treating it as navigation.
-
-## Export
-
-```sh
+```bash
 docker compose run --rm generator export --format webp
 ```
 
-Results are independent lossless WebP tiles in `jobs/_export/tiles/` and
-`jobs/_export/manifest.json`. Nothing modifies `main` or the old tiles.
+Выход: `jobs/_export/manifest.json` и отдельные `jobs/_export/tiles/*.webp`.
+Никаких запросов OpenAI API, ключей или платы за API нет. Генерация арта через
+ChatGPT остаётся ручным шагом.
 
 ## Tests
 
-```sh
+```bash
 python -m unittest discover -s tests -v
 ```
-
-Tests use mocked API responses: no paid API calls. Full Docker build and
-real API end-to-end execution have not been run in this environment.

@@ -1,6 +1,8 @@
-# Runtime maps and generated images are mounted, never baked into Docker.
+# Do not bake existing terrain and generated assets into Docker.
 .git
 .venv
+.env
+.env.*
 __pycache__
 .pytest_cache
 jobs

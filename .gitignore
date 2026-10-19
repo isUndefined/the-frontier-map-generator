@@ -3,6 +3,6 @@ __pycache__/
 .pytest_cache/
 *.pyc
 jobs/_export/
+jobs/*/chatgpt_bundle.zip
 .env
 .env.*
-!.env.example

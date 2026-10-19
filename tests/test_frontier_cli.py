@@ -1,12 +1,8 @@
-import io
 import json
-import os
 from pathlib import Path
-import subprocess
-import sys
 import tempfile
 import unittest
-from unittest import mock
+import zipfile
 
 import numpy as np
 from PIL import Image
@@ -84,11 +80,43 @@ class FrontierCliTests(unittest.TestCase):
             cli.publish(self.jobs, plan['job'])
         self.assertFalse((self.jobs / plan['job'] / 'region.json').exists())
 
-    def test_generator_command_requires_real_output(self):
+    def test_chatgpt_zip_contents_and_existing_job_repack(self):
         plan = cli.prepare_expansion(self.jobs, 'east', context=12)
-        with self.assertRaises(FileNotFoundError):
-            cli.run_generator(f'{sys.executable} -c "print(123)"', self.jobs,
-                              plan['job'], plan['target'])
+        bundle = cli.pack_chatgpt(self.jobs, plan['job'])
+        self.assertTrue(bundle.is_file())
+        with zipfile.ZipFile(bundle) as z:
+            names = set(z.namelist())
+            self.assertIn('CHATGPT_INSTRUCTIONS.md', names)
+            self.assertIn('input/generation_canvas.png', names)
+            self.assertIn('input/generation_mask.png', names)
+            self.assertIn('input/prompt.txt', names)
+            self.assertIn('input/context_board.png', names)
+            self.assertIn('job_info.json', names)
+            guide = z.read('CHATGPT_INSTRUCTIONS.md').decode()
+            self.assertIn('54 x 42', guide)
+            self.assertIn('Do not resize', guide)
+            self.assertNotIn(str(self.jobs), z.read('job_info.json').decode())
+        self.assertEqual(cli.pack_chatgpt(self.jobs, plan['job']), bundle)
+        self.assertFalse((self.jobs / plan['job'] / 'region.json').exists())
+
+    def test_expand_cli_creates_zip_and_dry_run_does_not(self):
+        self.assertEqual(cli.main(['--jobs', str(self.jobs), 'expand',
+                                  '--direction', 'east', '--provider', 'chatgpt',
+                                  '--dry-run']), 0)
+        self.assertFalse((self.jobs / 'tile_x+1_y+0').exists())
+        self.assertEqual(cli.main(['--jobs', str(self.jobs), 'expand',
+                                  '--direction', 'east', '--provider', 'chatgpt']), 0)
+        bundle = self.jobs / 'tile_x+1_y+0' / 'chatgpt_bundle.zip'
+        self.assertTrue(bundle.exists())
+        self.assertEqual(cli.main(['--jobs', str(self.jobs), 'pack',
+                                  '--job', 'tile_x+1_y+0']), 0)
+
+    def test_reject_wrong_generated_size_without_resizing(self):
+        plan = cli.prepare_expansion(self.jobs, 'east', context=12)
+        path = self.jobs / plan['job'] / 'generated.png'
+        Image.new('RGB', (self.w * 2, self.h * 2)).save(path)
+        with self.assertRaisesRegex(ValueError, 'No resize or upscaling'):
+            cli.publish(self.jobs, plan['job'])
         self.assertFalse((self.jobs / plan['job'] / 'region.json').exists())
 
     def test_portable_jobs_root_when_previous_absolute_path_is_invalid(self):

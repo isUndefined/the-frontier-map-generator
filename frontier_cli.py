@@ -10,9 +10,8 @@ import json
 import os
 from pathlib import Path
 import re
-import shlex
-import subprocess
 import sys
+import zipfile
 
 from PIL import Image
 
@@ -124,28 +123,69 @@ def prepare_expansion(jobs, direction, anchor=None, name=None, context=700,
     return data
 
 
-def run_generator(command: str, jobs: Path, job: str, target):
-    if not command.strip():
-        raise ValueError('Image generation command is empty')
-    path = jobs / job
-    output = path / 'generated.png'
-    env = {**os.environ,
-           'FRONTIER_CANVAS': str(path / 'input' / 'generation_canvas.png'),
-           'FRONTIER_MASK': str(path / 'input' / 'generation_mask.png'),
-           'FRONTIER_PROMPT': str(path / 'input' / 'prompt.txt'),
-           'FRONTIER_CONTEXT': str(path / 'input' / 'context_board.png'),
-           'FRONTIER_OUTPUT': str(output),
-           'FRONTIER_JOB': str(path),
-           'FRONTIER_TARGET_X': str(target['x']),
-           'FRONTIER_TARGET_Y': str(target['y'])}
-    # Do not use shell=True: paths and template contents must not be executable.
-    args = shlex.split(command)
-    if not args:
-        raise ValueError('Empty generator command')
-    subprocess.run(args, env=env, check=True)
-    if not output.is_file():
-        raise FileNotFoundError(f'Generator exited without creating {output}')
-    return output
+def pack_chatgpt(jobs: Path, job: str) -> Path:
+    """Make a reusable ChatGPT handoff ZIP for an already prepared job.
+
+    Includes every prepared source/reference image and prompt, but no generated
+    output, published tiles, private host paths or accumulated world panoramas.
+    Does not modify existing input files; safe to re-run after a failed attempt.
+    """
+    jobs = Path(jobs).resolve()
+    folder = jobs / job
+    meta = folder / 'grid_job.json'
+    inp = folder / 'input'
+    if folder.parent != jobs or not meta.is_file() or not inp.is_dir():
+        raise ValueError(f'No prepared job under jobs/: {job}')
+    if (folder / 'region.json').is_file():
+        raise ValueError(f'Job {job} is already published')
+    metadata = load_json(meta)
+    if metadata.get('method') != 'local_tile_v1':
+        raise ValueError(f'Unsupported job format: {job}')
+    wanted = ['generation_canvas.png', 'generation_mask.png', 'prompt.txt', 'context_board.png']
+    missing = [x for x in wanted if not (inp / x).is_file()]
+    if missing:
+        raise FileNotFoundError(f'Job {job} is missing inputs: {", ".join(missing)}')
+    with Image.open(inp / 'generation_canvas.png') as im:
+        width, height = im.size
+    with Image.open(inp / 'generation_mask.png') as im:
+        if im.size != (width, height):
+            raise ValueError('Generation mask must match canvas dimensions')
+    bundle_path = folder / 'chatgpt_bundle.zip'
+    prompt = (inp / 'prompt.txt').read_text(encoding='utf-8')
+    guide = (
+        f'# The Frontier / ChatGPT art continuation — {job}\n\n'
+        f'Target tile: {metadata.get("target", {})}\n'
+        f'Output filename: generated.png\n'
+        f'OUTPUT SIZE: EXACTLY {width} x {height} pixels.\n'
+        'Do not resize, upscale, downscale, stretch, crop, rotate, or reframe the canvas.\n'
+        'Preserve pixels in BLACK areas of input/generation_mask.png exactly.\n'
+        'Generate new terrain ONLY where the mask is WHITE.\n'
+        'Use input/context_board.png and input/neighbors/ / input/diagonals/ '
+        'as visual references, if present.\n'
+        'Continue roads, streams, mountains, lighting and perspective seamlessly.\n'
+        'Return ONE complete PNG canvas, with no labels or interface.\n\n'
+        '--- ORIGINAL GENERATION PROMPT ---\n\n' + prompt + '\n'
+    )
+    tmp = bundle_path.with_suffix('.zip.tmp')
+    try:
+        with zipfile.ZipFile(tmp, 'w', compression=zipfile.ZIP_STORED, allowZip64=True) as z:
+            z.writestr('CHATGPT_INSTRUCTIONS.md', guide)
+            for image in sorted(inp.rglob('*')):
+                if image.is_file() and not image.is_symlink():
+                    relative = image.relative_to(folder).as_posix()
+                    z.write(image, relative)
+            # Avoid absolute container paths found in grid_job.json; the
+            # prompt and prepared sources are sufficient for the conversation.
+            z.writestr('job_info.json', json.dumps({
+                'job': job, 'target': metadata.get('target'),
+                'primary_side': metadata.get('primary_side'),
+                'canvas_size': [width, height],
+            }, ensure_ascii=False, indent=2))
+        tmp.replace(bundle_path)
+    finally:
+        tmp.unlink(missing_ok=True)
+    return bundle_path
+
 
 
 def publish(jobs: Path, job: str, generated=None, feather=4, draft=False, export=True,
@@ -158,7 +198,19 @@ def publish(jobs: Path, job: str, generated=None, feather=4, draft=False, export
         raise ValueError(f'Job {job} is already published; refusing to overwrite')
     img = Path(generated).resolve() if generated else path / 'generated.png'
     if not img.is_file():
-        raise FileNotFoundError(f'Missing image {img}; provide --generated or configure a model')
+        raise FileNotFoundError(f'Missing image {img}. Save the ChatGPT result to jobs/{job}/generated.png, then run finalize.')
+    # The CLI must not silently resize art (the underlying legacy stitch
+    # script permits proportional scaling for older/manual workflows).
+    with Image.open(path / 'input' / 'generation_canvas.png') as expected_image:
+        expected_size = expected_image.size
+    with Image.open(img) as result_image:
+        result_size = result_image.size
+    if result_size != expected_size:
+        raise ValueError(
+            f'Generated image is {result_size[0]}x{result_size[1]}, '
+            f'but the prepared canvas is {expected_size[0]}x{expected_size[1]}. '
+            'No resize or upscaling will be done; obtain the exact canvas size.'
+        )
     stitch(path, img, feather=feather, draft=draft, jobs=jobs)
     if draft:
         return {'job': job, 'draft': str(path / 'draft' / 'tile.png')}
@@ -230,27 +282,23 @@ def show_status(jobs):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description='Grow The Frontier world one art tile at a time.')
-    p.add_argument('--jobs', default='jobs', help='Jobs directory; mounted as /app/jobs in Docker')
+    p = argparse.ArgumentParser(description='Expand The Frontier world with art tiles and ChatGPT handoff ZIPs.')
+    p.add_argument('--jobs', default='jobs', help='Jobs directory; Docker mounts it as /app/jobs')
     sub = p.add_subparsers(dest='command', required=True)
     sub.add_parser('status', help='List published and pending tiles')
-    expand = sub.add_parser('expand', help='Prepare the next tile, optionally generate and publish')
+    expand = sub.add_parser('expand', help='Prepare a free world tile and create ChatGPT handoff ZIP')
     expand.add_argument('--direction', choices=DIRS, required=True)
-    expand.add_argument('--from', dest='anchor', help='Starting published tile ID or coordinates x,y')
+    expand.add_argument('--provider', choices=['chatgpt'], default='chatgpt')
+    expand.add_argument('--from', dest='anchor', help='Published tile ID or grid coordinates x,y')
     expand.add_argument('--job', help='Name of the new job')
     expand.add_argument('--context', type=int, default=700)
     expand.add_argument('--overlap', type=int, default=None)
     expand.add_argument('--dry-run', action='store_true')
-    expand.add_argument('--generator-command', default=None,
-                        help='External generator command; may also use FRONTIER_GENERATOR_COMMAND')
-    expand.add_argument('--generated', help='Existing image for this expansion')
-    expand.add_argument('--feather', type=int, default=4)
-    expand.add_argument('--no-export', action='store_true')
-    finalize = sub.add_parser('finalize', help='Stitch and publish an existing prepared job')
+    pack = sub.add_parser('pack', help='Create/re-create a ChatGPT ZIP for an existing pending job')
+    pack.add_argument('--job', required=True)
+    finalize = sub.add_parser('finalize', help='Validate and publish a ChatGPT-generated PNG')
     finalize.add_argument('--job', required=True)
-    finalize.add_argument('--generated', help='External generated image')
-    finalize.add_argument('--generator-command', default=None,
-                          help='Run or retry an external generator before finalization')
+    finalize.add_argument('--generated', help='PNG path visible inside Docker (e.g. /app/jobs/<job>/generated.png)')
     finalize.add_argument('--feather', type=int, default=4)
     finalize.add_argument('--draft', action='store_true')
     finalize.add_argument('--no-export', action='store_true')
@@ -258,7 +306,7 @@ def build_parser():
     ex.add_argument('--format', choices=('webp', 'png'), default='webp')
     ex.add_argument('--quality', type=int, default=92)
     ex.add_argument('--force', action='store_true')
-    ex.add_argument('--lossy', action='store_true', help='Smaller WebP, but may introduce seam artifacts')
+    ex.add_argument('--lossy', action='store_true')
     return p
 
 
@@ -270,39 +318,26 @@ def main(argv=None):
             result = show_status(jobs)
         elif args.command == 'export':
             result = {'manifest': str(export_tiles(jobs, args.format, args.quality, args.force, args.lossy))}
+        elif args.command == 'pack':
+            bundle = pack_chatgpt(jobs, args.job)
+            result = {'job': args.job, 'chatgpt_bundle': str(bundle),
+                      'next_step': f'Upload this ZIP to ChatGPT. Save the resulting PNG as jobs/{args.job}/generated.png, then run finalize --job {args.job}.'}
         elif args.command == 'finalize':
-            cmd = args.generator_command or os.getenv('FRONTIER_GENERATOR_COMMAND', '')
-            if args.generated and args.generator_command:
-                raise ValueError('Choose --generated OR --generator-command')
-            generation = None
-            if args.generated:
-                generation = Path(args.generated).resolve()
-            elif cmd and not (jobs / args.job / 'generated.png').is_file():
-                metadata = load_json(jobs / args.job / 'grid_job.json')
-                generation = run_generator(cmd, jobs, args.job, metadata['target'])
-            result = publish(jobs, args.job, generated=generation, feather=args.feather,
+            result = publish(jobs, args.job, generated=args.generated, feather=args.feather,
                              draft=args.draft, export=not args.no_export)
         else:
-            if args.generated and args.generator_command:
-                raise ValueError('Choose --generated OR --generator-command')
             result = prepare_expansion(jobs, args.direction, args.anchor, args.job,
                                        args.context, args.overlap, args.dry_run)
             if not args.dry_run:
-                command = args.generator_command or os.getenv('FRONTIER_GENERATOR_COMMAND', '')
-                if args.generated or command:
-                    generated = (Path(args.generated).resolve() if args.generated
-                                 else run_generator(command, jobs, result['job'], result['target']))
-                    result.update(publish(jobs, result['job'], generated, args.feather,
-                                          export=not args.no_export))
-                else:
-                    result['next_step'] = (
-                        f'Create {result["generated"]} using input/generation_canvas.png, '
-                        'input/generation_mask.png and input/prompt.txt; '
-                        f'then: frontier_cli.py finalize --job {result["job"]}'
-                    )
+                bundle = pack_chatgpt(jobs, result['job'])
+                result['provider'] = args.provider
+                result['chatgpt_bundle'] = str(bundle)
+                result['next_step'] = (f'Upload {bundle} to ChatGPT. Save the output PNG as '
+                                       f'jobs/{result["job"]}/generated.png, then run '
+                                       f'finalize --job {result["job"]}.')
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
-    except (ValueError, FileNotFoundError, FileExistsError, RuntimeError, subprocess.CalledProcessError) as exc:
+    except (ValueError, FileNotFoundError, FileExistsError, RuntimeError, OSError) as exc:
         print(f'ERROR: {exc}', file=sys.stderr)
         return 1
 
