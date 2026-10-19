@@ -1,3 +1,13 @@
+## OpenAI Image Edit (native resolution)
+
+Copy `.env.example` to `.env` and supply your own `OPENAI_API_KEY`.
+Run `docker compose build generator`, then `docker compose run --rm generator expand --direction west`.
+Already prepared `tile_x-2_y+0`? Run `docker compose run --rm generator finalize --job tile_x-2_y+0`.
+**No resize/upscale**: minimum padding and exact crop; fixed pixels are restored.
+See [DOCKER_WORLD_GENERATOR.md](DOCKER_WORLD_GENERATOR.md) for details.
+
+---
+
 # Docker CLI / расширение мира
 
 Добавлена обвязка для расширения по чанкам без сборки огромной панорамы.

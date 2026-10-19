@@ -2,5 +2,7 @@
 __pycache__/
 .pytest_cache/
 *.pyc
-# Preserve the checked-in example jobs; ignore only new browser exports.
 jobs/_export/
+.env
+.env.*
+!.env.example

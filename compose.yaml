@@ -6,4 +6,7 @@ services:
       - ./jobs:/app/jobs
       - ./providers:/app/providers:ro
     environment:
-      FRONTIER_GENERATOR_COMMAND: ${FRONTIER_GENERATOR_COMMAND:-}
+      FRONTIER_GENERATOR_COMMAND: ${FRONTIER_GENERATOR_COMMAND:-python /app/providers/openai_edit.py}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_IMAGE_MODEL: ${OPENAI_IMAGE_MODEL:-gpt-image-2.5-sunburst}
+      OPENAI_IMAGE_QUALITY: ${OPENAI_IMAGE_QUALITY:-high}
