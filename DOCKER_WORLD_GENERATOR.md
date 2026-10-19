@@ -59,3 +59,35 @@ the API-free workflow doesn't require any credits.
 ```sh
 python -m unittest discover -s tests -v
 ```
+
+## Quality gate / fixing a bad published tile
+
+```sh
+docker compose run --rm generator audit --job tile_x-2_y+0
+```
+
+The report is stored in `jobs/tile_x-2_y+0/quality_report.json`.
+Large near-identical terrain copied **outside the physical overlap** is a
+hard failure, even if stitch accepted the generated image.
+Weak ChatGPT alignment is also blocked by default. Uncertain alignment can
+be accepted only with the explicit `--allow-weak-alignment` option, after
+visual inspection; that option NEVER bypasses a terrain-duplication rejection.
+
+To fix an already published tile, generate a **new** PNG at the exact native
+canvas size and place it at `jobs/tile_x-2_y+0/generated.png`. Inspect the draft:
+
+```sh
+docker compose run --rm generator finalize --job tile_x-2_y+0 --draft
+```
+
+The draft writes `draft/quality_report.json` and does not affect the world.
+If the report passes, publish the replacement safely:
+
+```sh
+docker compose run --rm generator finalize --job tile_x-2_y+0 --replace
+```
+
+Old tile and metadata are saved under `backups/<UTC timestamp>/`.
+A failed replacement restores the previous publication. Published descendants
+which already used the replaced area are not regenerated automatically: inspect
+their boundaries and re-render if necessary.

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 import numpy as np
@@ -138,6 +139,47 @@ class FrontierCliTests(unittest.TestCase):
         self.fake_output(plan)
         result = cli.publish(self.jobs, plan['job'], feather=0)
         self.assertTrue(Path(result['published']).is_file())
+
+    def test_quality_gate_rejects_duplicate_without_publishing(self):
+        plan = cli.prepare_expansion(self.jobs, 'east', context=12)
+        self.fake_output(plan)
+        with patch.object(cli, 'audit_tile', return_value={
+            'status': 'rejected', 'issues': ['duplicated_terrain'],
+            'duplicate_matches': [{'source_tile': 'center'}],
+        }):
+            with self.assertRaisesRegex(ValueError, 'duplicated_terrain'):
+                cli.publish(self.jobs, plan['job'], allow_weak_alignment=True)
+        self.assertTrue((self.jobs / plan['job'] / 'draft' / 'quality_report.json').exists())
+        self.assertFalse((self.jobs / plan['job'] / 'region.json').exists())
+
+    def test_draft_does_not_publish_on_bad_art(self):
+        plan = cli.prepare_expansion(self.jobs, 'east', context=12)
+        self.fake_output(plan)
+        with patch.object(cli, 'audit_tile', return_value={
+            'status': 'rejected', 'issues': ['weak_alignment'],
+        }):
+            result = cli.publish(self.jobs, plan['job'], draft=True)
+        self.assertEqual(result['quality'], 'rejected')
+        self.assertFalse((self.jobs / plan['job'] / 'region.json').exists())
+
+    def test_refuses_to_replace_without_explicit_flag(self):
+        plan = cli.prepare_expansion(self.jobs, 'east', context=12)
+        self.fake_output(plan)
+        with patch.object(cli, 'audit_tile', return_value={'status': 'passed', 'issues': []}):
+            cli.publish(self.jobs, plan['job'])
+        with self.assertRaisesRegex(ValueError, 'already published'):
+            cli.publish(self.jobs, plan['job'])
+
+    def test_replacement_saves_old_tile_and_metadata(self):
+        plan = cli.prepare_expansion(self.jobs, 'east', context=12)
+        self.fake_output(plan)
+        with patch.object(cli, 'audit_tile', return_value={'status': 'passed', 'issues': []}):
+            cli.publish(self.jobs, plan['job'])
+            old = (self.jobs / plan['job'] / 'tile.png').read_bytes()
+            result = cli.publish(self.jobs, plan['job'], replace=True)
+        self.assertEqual((Path(result['backup']) / 'tile.png').read_bytes(), old)
+        self.assertTrue((Path(result['backup']) / 'region.json').exists())
+        self.assertTrue((self.jobs / plan['job'] / 'region.json').exists())
 
     def test_direction_from_newest_in_orthogonal_axis(self):
         first = cli.prepare_expansion(self.jobs, 'north', context=12)

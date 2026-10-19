@@ -11,6 +11,9 @@ import os
 from pathlib import Path
 import re
 import shutil
+import tempfile
+from datetime import datetime, timezone
+from terrain_quality import audit_tile
 import sys
 import zipfile
 
@@ -189,37 +192,114 @@ def pack_chatgpt(jobs: Path, job: str) -> Path:
 
 
 
-def publish(jobs: Path, job: str, generated=None, feather=4, draft=False, export=True,
-            export_format='webp'):
+def publish(jobs: Path, job: str, generated=None, feather=4, draft=False,
+            export=True, export_format='webp', replace=False, allow_weak_alignment=False):
+    """Validate a draft before publishing; preserve old assets on replacement.
+
+    The quality gate runs on the *stitched* draft and never changes world
+    registrations on rejection. Replacements are backed up before modifying
+    existing assets, and failed writes restore the previous publication.
+    """
     jobs = Path(jobs).resolve()
     path = jobs / job
     if not path.is_dir() or not (path / 'grid_job.json').exists():
         raise ValueError(f'No prepared job: {job}')
-    if (path / 'region.json').exists():
-        raise ValueError(f'Job {job} is already published; refusing to overwrite')
+    published = (path / 'region.json').exists()
+    if published and not replace and not draft:
+        raise ValueError(f'Job {job} is already published; use --replace after inspection')
     img = Path(generated).resolve() if generated else path / 'generated.png'
     if not img.is_file():
-        raise FileNotFoundError(f'Missing image {img}. Save the ChatGPT result to jobs/{job}/generated.png, then run finalize.')
-    # The CLI must not silently resize art (the underlying legacy stitch
-    # script permits proportional scaling for older/manual workflows).
-    with Image.open(path / 'input' / 'generation_canvas.png') as expected_image:
-        expected_size = expected_image.size
-    with Image.open(img) as result_image:
-        result_size = result_image.size
-    if result_size != expected_size:
+        raise FileNotFoundError(f'Missing image {img}. Save a new PNG then run finalize.')
+    with Image.open(path / 'input' / 'generation_canvas.png') as canvas:
+        expected_size = canvas.size
+    with Image.open(img) as result:
+        actual_size = result.size
+    if actual_size != expected_size:
         raise ValueError(
-            f'Generated image is {result_size[0]}x{result_size[1]}, '
-            f'but the prepared canvas is {expected_size[0]}x{expected_size[1]}. '
-            'No resize or upscaling will be done; obtain the exact canvas size.'
+            f'Generated image is {actual_size}, expected {expected_size}. '
+            'No resize or upscaling permitted.'
         )
-    stitch(path, img, feather=feather, draft=draft, jobs=jobs)
+
+    # Always use the original stitcher draft path first. It cannot overwrite
+    # the registered tile or its published metadata.
+    stitch(path, img, feather=feather, draft=True, jobs=jobs)
+    draft_path = path / 'draft' / 'tile.png'
+    report = audit_tile(
+        jobs, job, draft_path,
+        stitch_metadata=load_json(path / 'draft' / 'stitch_meta.json'),
+        allow_weak_alignment=allow_weak_alignment,
+    )
+    save_json(path / 'draft' / 'quality_report.json', report)
     if draft:
-        return {'job': job, 'draft': str(path / 'draft' / 'tile.png')}
-    if not (path / 'region.json').is_file():
-        raise RuntimeError('Stitch returned without registering the tile')
-    result = {'job': job, 'published': str(path / 'tile.png')}
+        return {'job': job, 'draft': str(draft_path),
+                'quality_report': str(path / 'draft' / 'quality_report.json'),
+                'quality': report['status'], 'issues': report['issues']}
+    if report['status'] != 'passed':
+        raise ValueError(
+            f'Quality gate rejected {job}: {", ".join(report["issues"])}. '
+            'View draft/quality_report.json, regenerate the artwork, or '
+            'use --allow-weak-alignment ONLY for weak alignment. '
+            'Duplicated terrain is never overridable.'
+        )
+
+    # A validated draft precedes publication, so weak/no-registration fallback
+    # never silently sneaks into the world.
+    backups = {}
+    if replace:
+        if not published:
+            raise ValueError('--replace is for a previously published job only')
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        backup_dir = path / 'backups' / stamp
+        backup_dir.mkdir(parents=True, exist_ok=False)
+        for filename in ('tile.png', 'region.json', 'stitch_meta.json'):
+            target = path / filename
+            if target.is_file():
+                shutil.copy2(target, backup_dir / filename)
+                backups[filename] = backup_dir / filename
+    else:
+        backup_dir = None
+
+    try:
+        # Stitch a final tile with correct dependencies. The draft was checked
+        # independently; recheck again if its bytes ever change unexpectedly.
+        stitch(path, img, feather=feather, draft=False, jobs=jobs)
+        output = path / 'tile.png'
+        final_report = audit_tile(
+            jobs, job, output,
+            stitch_metadata=load_json(path / 'stitch_meta.json'),
+            allow_weak_alignment=allow_weak_alignment,
+        )
+        save_json(path / 'quality_report.json', final_report)
+        if final_report['status'] != 'passed':
+            raise ValueError(f'Final tile failed QA: {final_report["issues"]}')
+        if export:
+            manifest = export_tiles(jobs, export_format, force=replace)
+    except Exception:
+        if replace:
+            for filename in ('tile.png', 'region.json', 'stitch_meta.json'):
+                p = path / filename
+                if filename in backups:
+                    shutil.copy2(backups[filename], p)
+                else:
+                    p.unlink(missing_ok=True)
+            # Refresh stale browser tiles if possible.
+            try:
+                if export:
+                    export_tiles(jobs, export_format, force=True)
+            except Exception:
+                pass
+        else:
+            for filename in ('tile.png', 'region.json', 'stitch_meta.json', 'quality_report.json'):
+                (path / filename).unlink(missing_ok=True)
+        raise
+
+    result = {'job': job, 'published': str(path / 'tile.png'),
+              'quality_report': str(path / 'quality_report.json'),
+              'quality': 'passed'}
+    if backup_dir is not None:
+        result['backup'] = str(backup_dir)
     if export:
-        result['manifest'] = str(export_tiles(jobs, export_format))
+        result['manifest'] = str(manifest)
         result['viewer'] = str(jobs / '_export' / 'index.html')
     return result
 
@@ -310,6 +390,13 @@ def build_parser():
     finalize.add_argument('--feather', type=int, default=4)
     finalize.add_argument('--draft', action='store_true')
     finalize.add_argument('--no-export', action='store_true')
+    finalize.add_argument('--replace', action='store_true',
+                          help='Replace a published tile after QA, backing up old art and metadata')
+    finalize.add_argument('--allow-weak-alignment', action='store_true',
+                          help='Allow failed alignment only; duplicate terrain remains a hard blocker')
+    audit = sub.add_parser('audit', help='Quality-check an existing published tile')
+    audit.add_argument('--job', required=True)
+    audit.add_argument('--allow-weak-alignment', action='store_true')
     ex = sub.add_parser('export', help='Export separate browser tiles and manifest, never a panorama')
     ex.add_argument('--format', choices=('webp', 'png'), default='webp')
     ex.add_argument('--quality', type=int, default=92)
@@ -331,9 +418,17 @@ def main(argv=None):
             bundle = pack_chatgpt(jobs, args.job)
             result = {'job': args.job, 'chatgpt_bundle': str(bundle),
                       'next_step': f'Upload this ZIP to ChatGPT. Save the resulting PNG as jobs/{args.job}/generated.png, then run finalize --job {args.job}.'}
+        elif args.command == 'audit':
+            tile = jobs / args.job / 'tile.png'
+            if not (jobs / args.job / 'region.json').is_file():
+                raise ValueError(f'Job {args.job} is not published')
+            result = audit_tile(jobs, args.job, tile,
+                                allow_weak_alignment=args.allow_weak_alignment)
+            save_json(jobs / args.job / 'quality_report.json', result)
         elif args.command == 'finalize':
             result = publish(jobs, args.job, generated=args.generated, feather=args.feather,
-                             draft=args.draft, export=not args.no_export)
+                             draft=args.draft, export=not args.no_export,
+                             replace=args.replace, allow_weak_alignment=args.allow_weak_alignment)
         else:
             result = prepare_expansion(jobs, args.direction, args.anchor, args.job,
                                        args.context, args.overlap, args.dry_run)
