@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
 import zipfile
 
@@ -219,6 +220,7 @@ def publish(jobs: Path, job: str, generated=None, feather=4, draft=False, export
     result = {'job': job, 'published': str(path / 'tile.png')}
     if export:
         result['manifest'] = str(export_tiles(jobs, export_format))
+        result['viewer'] = str(jobs / '_export' / 'index.html')
     return result
 
 
@@ -267,6 +269,12 @@ def export_tiles(jobs: Path, output_format='webp', quality=92, force=False, loss
     }
     # The tiles array is in dependency-first paint order.
     save_json(output / 'manifest.json', manifest)
+    # Always publish a lightweight viewer alongside the manifest. This keeps
+    # browsing independent from the number and size of world tiles.
+    viewer_source = Path(__file__).resolve().parent / 'viewer' / 'index.html'
+    if not viewer_source.is_file():
+        raise FileNotFoundError(f'Missing viewer source: {viewer_source}')
+    shutil.copyfile(viewer_source, output / 'index.html')
     return output / 'manifest.json'
 
 
@@ -317,7 +325,8 @@ def main(argv=None):
         if args.command == 'status':
             result = show_status(jobs)
         elif args.command == 'export':
-            result = {'manifest': str(export_tiles(jobs, args.format, args.quality, args.force, args.lossy))}
+            result = {'manifest': str(export_tiles(jobs, args.format, args.quality, args.force, args.lossy)),
+                      'viewer': str(jobs / '_export' / 'index.html')}
         elif args.command == 'pack':
             bundle = pack_chatgpt(jobs, args.job)
             result = {'job': args.job, 'chatgpt_bundle': str(bundle),

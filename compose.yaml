@@ -4,3 +4,11 @@ services:
     working_dir: /app
     volumes:
       - ./jobs:/app/jobs
+  viewer:
+    image: python:3.11-slim
+    working_dir: /world
+    volumes:
+      - ./jobs/_export:/world:ro
+    command: ["python", "-m", "http.server", "8000", "--bind", "0.0.0.0", "--directory", "/world"]
+    ports:
+      - "127.0.0.1:8000:8000"

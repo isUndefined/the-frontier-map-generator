@@ -58,6 +58,16 @@ class FrontierCliTests(unittest.TestCase):
         self.assertTrue(exported.is_file())
         with Image.open(exported) as im, Image.open(self.jobs / first['job'] / 'tile.png') as source:
             np.testing.assert_array_equal(np.array(im.convert('RGB')), np.array(source.convert('RGB')))
+        # HTML viewer ships alongside independently exported tiles.
+        viewer = self.jobs / '_export' / 'index.html'
+        self.assertTrue(viewer.is_file())
+        html = viewer.read_text(encoding='utf-8')
+        self.assertIn('Show Grid', html)
+        self.assertIn('Show Overlap', html)
+        self.assertIn('Tile Bounds', html)
+        self.assertIn('manifest.json', html)
+        self.assertIn('pointerdown', html)
+        self.assertIn('wheel', html)
         self.assertFalse((self.jobs / '_grid').exists())
         second = cli.prepare_expansion(self.jobs, 'west', context=12)
         self.assertEqual(second['target'], {'x': -2, 'y': 0})

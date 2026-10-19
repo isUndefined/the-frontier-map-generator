@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10191e">
+<title>The Frontier — World Atlas</title>
+<style>
+:root {color-scheme:dark; --bg:#091216; --panel:#142026; --edge:#35434a; --gold:#d7b77c; --muted:#a1b0b5; --text:#e9e7df}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input{font:inherit}button{border:1px solid #46535a;background:#202c32;color:var(--text);border-radius:5px;padding:8px 12px;cursor:pointer}button:hover{border-color:var(--gold)}button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#app{display:flex;height:100dvh;width:100vw}
+aside{width:280px;flex:none;background:linear-gradient(180deg,#1d2a2f,#111c22);border-right:1px solid #39454a;overflow-y:auto;z-index:10;padding:20px 17px}
+.brand{font:700 24px/1.1 Georgia,serif;letter-spacing:2px;color:#f2e4c7;margin:0}.brand small{display:block;margin-top:8px;font:11px/1.4 system-ui;letter-spacing:2.4px;color:var(--gold)}
+.sep{border:0;border-top:1px solid #38454a;margin:20px 0}
+h2{font:700 12px/1.3 system-ui;text-transform:uppercase;letter-spacing:1.7px;color:var(--gold);margin:0 0 13px}
+.opt{display:flex;align-items:center;gap:10px;margin:10px 0;cursor:pointer}.opt input{width:16px;height:16px;accent-color:var(--gold)}.opt span{flex:1}
+.key{font-size:11px;color:#8a9a9f;border:1px solid #526068;border-radius:3px;padding:1px 5px}
+.tool-row{display:flex;gap:7px;flex-wrap:wrap}.tool-row button{flex:1}
+.caption{font-size:12px;line-height:1.55;color:var(--muted)}.mono{font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}
+#details{min-height:115px}#details strong{color:#efdfbe}#details a{color:#e6c98e;text-decoration:none}#details a:hover{text-decoration:underline}
+main{position:relative;flex:1;min-width:0;background:#0d171c}
+#viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab;background:radial-gradient(ellipse at center,#28333a 0%,#101d22 58%,#081216 100%)}
+#viewport.dragging{cursor:grabbing}
+#world{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.tile-image{position:absolute;display:block;user-select:none;-webkit-user-drag:none;image-rendering:auto;cursor:crosshair}
+#overlays{position:absolute;left:0;top:0;pointer-events:none;z-index:999999}
+.overlay{position:absolute;pointer-events:none}
+.grid-cell{border:2px solid rgba(238,198,111,.92);box-shadow:inset 0 0 0 1px #132124}
+.tile-bounds{border:2px dashed rgba(96,212,246,.85)}
+.overlap{background:repeating-linear-gradient(45deg,rgba(255,119,66,.22),rgba(255,119,66,.22) 10px,rgba(255,119,66,.1) 10px,rgba(255,119,66,.1) 20px);border:2px solid rgba(255,135,75,.75)}
+.tile-label{background:#101a20db;color:#f8e5b7;border:1px solid #d0a45a99;border-radius:3px;padding:5px 8px;font:600 13px ui-monospace,monospace;white-space:nowrap}
+.latest{border:4px solid #8ae2a4;box-shadow:inset 0 0 10px #8ae2a4}
+#hud{position:absolute;left:14px;right:14px;top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none}
+.hudbox{border:1px solid #425058;background:#0e1a21de;backdrop-filter:blur(5px);padding:9px 12px;border-radius:5px;color:#ecece5;font-size:12px}
+#hud button{pointer-events:auto}#top-right{display:flex;gap:8px;align-items:center}
+#zoom{font:600 12px ui-monospace,monospace;min-width:48px;text-align:center}
+#bottom{position:absolute;left:15px;bottom:14px;right:15px;display:flex;justify-content:space-between;align-items:end;gap:12px;pointer-events:none}
+#bottom .hudbox{pointer-events:auto}
+#message{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:#351d19ed;border:1px solid #ac7858;color:#ffe0c0;padding:12px 20px;border-radius:5px;max-width:min(92%,560px);display:none;z-index:20}
+#loading{position:absolute;inset:0;display:grid;place-items:center;color:#d7bd8e;background:#0e1b20;z-index:5}
+.legend{font-size:12px;color:#a3b2b6;display:flex;align-items:center;gap:8px;margin:7px 0}.sw{width:21px;height:9px;border:2px solid;display:inline-block}.sw.grid{border-color:#eec66f}.sw.bounds{border-color:#60d4f6;border-style:dashed}.sw.overlap{border-color:#ef925b;background:#66321b88}.sw.latest{border-color:#8ae2a4}
+@media(max-width:780px){aside{width:208px;padding:14px 12px}.brand{font-size:19px}.hudbox{font-size:11px;padding:7px}#hud{left:8px;right:8px;top:8px}#bottom{left:8px;right:8px;bottom:8px}#top-right{gap:3px}#top-right button{padding:7px 9px}.key{display:none}}
+@media(max-width:540px){#app{display:block}aside{position:absolute;top:58px;left:8px;bottom:55px;width:196px;transform:translateX(calc(-100% - 20px));transition:transform .18s;box-shadow:0 8px 40px #0008;z-index:9}aside.open{transform:translateX(0)}main{width:100%;height:100%}#mobile-menu{display:inline-block!important}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside id="sidebar">
+  <h1 class="brand">THE FRONTIER<small>WORLD ATLAS / QA VIEWER</small></h1>
+  <hr class="sep">
+  <h2>Слои карты</h2>
+  <label class="opt"><input type="checkbox" id="grid" checked><span>Show Grid <small class="key">G</small></span></label>
+  <label class="opt"><input type="checkbox" id="overlap"><span>Show Overlap <small class="key">O</small></span></label>
+  <label class="opt"><input type="checkbox" id="bounds"><span>Tile Bounds <small class="key">B</small></span></label>
+  <label class="opt"><input type="checkbox" id="labels" checked><span>Tile Coordinates <small class="key">L</small></span></label>
+  <label class="opt"><input type="checkbox" id="latest" checked><span>Highlight Latest</span></label>
+  <hr class="sep">
+  <h2>Легенда</h2>
+  <div class="legend"><span class="sw grid"></span> Шаг сетки / границы ячеек</div>
+  <div class="legend"><span class="sw overlap"></span> Физическое перекрытие 256 px*</div>
+  <div class="legend"><span class="sw bounds"></span> Полный размер тайла</div>
+  <div class="legend"><span class="sw latest"></span> Последний в порядке рендера</div>
+  <p class="caption">* Ширина берётся из <code>manifest.json</code>. Оранжевые области помогают проверить переход рельефа, а не являются ошибками.</p>
+  <hr class="sep">
+  <h2>Выбранный тайл</h2>
+  <div id="details" class="caption">Нажми на изображение чанка, чтобы посмотреть координаты и открыть оригинал.</div>
+  <hr class="sep">
+  <h2>Навигация</h2>
+  <p class="caption">Перетаскивай карту мышью. Колёсико — приблизить/отдалить. Клавиша <b>F</b> — показать весь мир. Можно увеличивать стык и сравнивать горы, реки, деревья и свет.</p>
+</aside>
+<main>
+<div id="viewport" aria-label="Интерактивная карта мира">
+  <div id="world"><div id="overlays"></div></div>
+</div>
+<div id="loading">Загружаю карту...</div>
+<div id="message" role="alert"></div>
+<div id="hud">
+  <div id="top-left" class="hudbox"><b>THE FRONTIER</b> <span id="stats">• loading</span></div>
+  <div id="top-right">
+    <button id="mobile-menu" style="display:none" aria-label="Меню">☰</button>
+    <button id="refresh" title="Обновить manifest">↻</button>
+    <button id="zoom-out" title="Отдалить">−</button>
+    <span id="zoom" class="hudbox">100%</span>
+    <button id="zoom-in" title="Приблизить">+</button>
+    <button id="fit" title="Вместить мир (F)">Fit</button>
+  </div>
+</div>
+<div id="bottom"><span id="position" class="hudbox mono">world: —</span><span class="hudbox">Drag • Scroll to zoom • G Grid • O Overlap</span></div>
+</main>
+</div>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const viewport=$("viewport"),world=$("world"),overlays=$("overlays");
+const checkIds=["grid","overlap","bounds","labels","latest"];
+let manifest=null,tiles=[],minX=0,minY=0,worldW=0,worldH=0,zoom=1,tx=0,ty=0;
+let down=null,selected=null;
+const imageNodes=[];
+
+function overlay(className,x,y,w,h,text,extra) {
+  const el=document.createElement("div");
+  el.className="overlay "+className;
+  el.style.left=x+"px";el.style.top=y+"px";
+  if(w!=null)el.style.width=w+"px";
+  if(h!=null)el.style.height=h+"px";
+  if(text!=null)el.textContent=text;
+  if(extra)extra(el);
+  overlays.appendChild(el);
+}
+function checked(k){return $(k).checked}
+function reportError(s){$("message").style.display="block";$("message").textContent=s}
+function clearError(){$("message").style.display="none"}
+function transform(){world.style.transform="translate("+tx+"px,"+ty+"px) scale("+zoom+")";$("zoom").textContent=Math.round(zoom*100)+"%"}
+function fit(){
+  if(!worldW||!worldH)return;
+  const w=viewport.clientWidth,h=viewport.clientHeight;
+  zoom=Math.max(.05,Math.min(2.5,Math.min((w-80)/worldW,(h-100)/worldH)));
+  tx=(w-worldW*zoom)/2;ty=(h-worldH*zoom)/2;
+  transform();
+}
+function zoomAt(factor,cx,cy){
+  const z=Math.max(.07,Math.min(6,zoom*factor));
+  tx=cx-(cx-tx)*(z/zoom);ty=cy-(cy-ty)*(z/zoom);zoom=z;transform();
+}
+function draw(){
+  overlays.replaceChildren();
+  if(!manifest)return;
+  const ov=Number(manifest.layout.overlap||0);
+  const stepX=Number(manifest.step_px.x),stepY=Number(manifest.step_px.y);
+  overlays.style.width=worldW+"px";overlays.style.height=worldH+"px";
+  const lookup=new Map(tiles.map(t=>[t.x+","+t.y,t]));
+  if(checked("overlap")){
+    for(const t of tiles){
+      const right=lookup.get((t.x+1)+","+t.y);
+      const below=lookup.get(t.x+","+(t.y+1));
+      if(right)overlay("overlap",Math.max(t.pixel_x,right.pixel_x)-minX,t.pixel_y-minY,ov,Number(t.height));
+      if(below)overlay("overlap",t.pixel_x-minX,Math.max(t.pixel_y,below.pixel_y)-minY,Number(t.width),ov);
+    }
+  }
+  for(const t of tiles){
+    const x=t.pixel_x-minX,y=t.pixel_y-minY;
+    if(checked("grid"))overlay("grid-cell",x,y,stepX,stepY);
+    if(checked("bounds"))overlay("tile-bounds",x,y,Number(t.width),Number(t.height));
+    if(checked("latest")&&t===tiles[tiles.length-1])overlay("latest",x,y,Number(t.width),Number(t.height));
+    if(checked("labels"))overlay("tile-label",x+12,y+12,null,null,t.id+"  ("+t.x+","+t.y+")");
+  }
+}
+function selectTile(t){
+  selected=t;
+  const details=$("details");
+  details.replaceChildren();
+  const title=document.createElement("strong");title.textContent=t.id;details.appendChild(title);
+  const info=document.createElement("div");info.className="mono";
+  info.textContent="Grid: ("+t.x+", "+t.y+")\n"+
+    "World px: ("+t.pixel_x+", "+t.pixel_y+")\n"+
+    "Size: "+t.width+" × "+t.height+"\n"+
+    "Deps: "+(Array.isArray(t.dependencies)?t.dependencies.join(", ")||"—":"—");
+  info.style.whiteSpace="pre-wrap";
+  info.style.margin="9px 0";details.appendChild(info);
+  const a=document.createElement("a");a.href=t.image;a.target="_blank";a.rel="noopener noreferrer";a.textContent="Открыть исходный тайл ↗";details.appendChild(a);
+}
+async function loadWorld(){
+  clearError();
+  try {
+    const res=await fetch("manifest.json?ts="+Date.now(),{cache:"no-store"});
+    if(!res.ok)throw Error("Не найден manifest.json ("+res.status+"). Выполни docker compose run --rm generator export и обнови страницу.");
+    const data=await res.json();
+    if(data.format!=="frontier_art_tiles_v1"||!Array.isArray(data.tiles)||!data.layout||!data.step_px)throw Error("Неизвестный формат manifest.json");
+    if(!data.tiles.length)throw Error("В manifest.json нет опубликованных тайлов");
+    const sx=Number(data.step_px.x),sy=Number(data.step_px.y);
+    if(!(sx>0&&sy>0))throw Error("Некорректные размеры сетки в manifest.json");
+    const prepared=data.tiles.map((t,i)=>({
+      ...t,x:Number(t.x),y:Number(t.y),pixel_x:Number(t.pixel_x),pixel_y:Number(t.pixel_y),
+      width:Number(t.width),height:Number(t.height),index:i
+    }));
+    for(const t of prepared){
+      if(!Number.isFinite(t.pixel_x)||!Number.isFinite(t.pixel_y)||!(t.width>0&&t.height>0)||typeof t.image!=="string")throw Error("Некорректный тайл в manifest.json");
+    }
+    const bounds={
+      minX:Math.min(...prepared.map(t=>t.pixel_x)), minY:Math.min(...prepared.map(t=>t.pixel_y)),
+      maxX:Math.max(...prepared.map(t=>t.pixel_x+t.width)),maxY:Math.max(...prepared.map(t=>t.pixel_y+t.height))
+    };
+    manifest=data;tiles=prepared;
+    minX=bounds.minX;minY=bounds.minY;worldW=bounds.maxX-minX;worldH=bounds.maxY-minY;
+    for(const node of imageNodes)node.remove();
+    imageNodes.length=0;
+    for(const t of tiles){
+      const img=document.createElement("img");
+      img.className="tile-image";img.src=t.image;img.alt=t.id;
+      img.draggable=false;img.dataset.index=t.index;
+      img.style.left=(t.pixel_x-minX)+"px";img.style.top=(t.pixel_y-minY)+"px";
+      img.style.width=t.width+"px";img.style.height=t.height+"px";
+      img.style.zIndex=String(t.index+1);
+      img.addEventListener("error",()=>reportError("Не удалось загрузить тайл: "+t.image));
+      world.insertBefore(img,overlays);
+      imageNodes.push(img);
+    }
+    world.style.width=worldW+"px";world.style.height=worldH+"px";
+    $("stats").textContent=" • "+tiles.length+" tiles • "+worldW+" × "+worldH+" px";
+    draw();fit();selectTile(tiles[tiles.length-1]);$("loading").style.display="none";
+  }catch(e){$("loading").style.display="none";reportError(String(e.message||e))}
+}
+viewport.addEventListener("pointerdown",e=>{
+  if(e.button!==0)return;
+  down={x:e.clientX,y:e.clientY,tx,ty,drag:false,target:e.target};
+  viewport.setPointerCapture(e.pointerId);viewport.classList.add("dragging");
+});
+viewport.addEventListener("pointermove",e=>{
+  const r=viewport.getBoundingClientRect();
+  if(manifest){
+    const wx=Math.round((e.clientX-r.left-tx)/zoom+minX);
+    const wy=Math.round((e.clientY-r.top-ty)/zoom+minY);
+    $("position").textContent="world: "+wx+", "+wy+" px";
+  }
+  if(!down)return;
+  const dx=e.clientX-down.x,dy=e.clientY-down.y;
+  if(Math.abs(dx)+Math.abs(dy)>5)down.drag=true;
+  tx=down.tx+dx;ty=down.ty+dy;transform();
+});
+viewport.addEventListener("pointerup",e=>{
+  if(down&&!down.drag&&down.target.matches(".tile-image")){
+    const t=tiles[Number(down.target.dataset.index)];if(t)selectTile(t);
+  }
+  down=null;viewport.classList.remove("dragging");
+});
+viewport.addEventListener("pointercancel",()=>{down=null;viewport.classList.remove("dragging")});
+viewport.addEventListener("wheel",e=>{
+  if(!manifest)return;
+  e.preventDefault();
+  const r=viewport.getBoundingClientRect();
+  zoomAt(e.deltaY<0?1.16:1/1.16,e.clientX-r.left,e.clientY-r.top);
+},{passive:false});
+$("zoom-in").onclick=()=>zoomAt(1.25,viewport.clientWidth/2,viewport.clientHeight/2);
+$("zoom-out").onclick=()=>zoomAt(.8,viewport.clientWidth/2,viewport.clientHeight/2);
+$("fit").onclick=fit;
+$("refresh").onclick=loadWorld;
+$("mobile-menu").onclick=()=>$("sidebar").classList.toggle("open");
+for(const id of checkIds)$(id).addEventListener("change",draw);
+document.addEventListener("keydown",e=>{
+  if(e.altKey||e.ctrlKey||e.metaKey||/INPUT|TEXTAREA/.test(e.target.tagName))return;
+  const id={g:"grid",o:"overlap",b:"bounds",l:"labels"}[e.key.toLowerCase()];
+  if(id){$(id).checked=!$(id).checked;draw()}
+  if(e.key.toLowerCase()==="f")fit();
+  if(e.key==="Escape")$("sidebar").classList.remove("open");
+});
+window.addEventListener("resize",()=>{if(manifest)fit()});
+loadWorld();
+</script>
+</body>
+</html>
