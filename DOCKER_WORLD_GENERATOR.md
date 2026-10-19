@@ -91,3 +91,35 @@ Old tile and metadata are saved under `backups/<UTC timestamp>/`.
 A failed replacement restores the previous publication. Published descendants
 which already used the replaced area are not regenerated automatically: inspect
 their boundaries and re-render if necessary.
+
+## Rebuild an existing region against ALL touching neighbors
+
+```sh
+docker compose build generator
+docker compose run --rm generator rebuild-job --job tile_x-2_y+0
+```
+
+This stages inputs, then backs up old `input/`, metadata, old `generated.png`
+and drafts under `jobs/tile_x-2_y+0/backups/input_<UTC timestamp>/`.
+The published `tile.png` and `region.json` remain unchanged.
+
+Send **three separate files** to ChatGPT (no ZIP needed):
+
+- `jobs/tile_x-2_y+0/input/generation_canvas.png`
+- `jobs/tile_x-2_y+0/input/generation_mask.png`
+- `jobs/tile_x-2_y+0/input/prompt.txt`
+
+`neighbor_debug_preview.png` shows where neighboring terrain was locked.
+The lock uses the same world-coordinate geometry and dependency-first paint
+order as the viewer, including all diagonal intersections. The generated image
+must be exactly 1672×941 px. Save it at `jobs/tile_x-2_y+0/generated.png`.
+
+```sh
+docker compose run --rm generator finalize --job tile_x-2_y+0 --draft
+docker compose run --rm generator finalize --job tile_x-2_y+0 --replace
+```
+
+The stitcher restores black-mask pixels **after** any alignment/side merging
+from the locked visible-world composite. Newly expanded jobs produce the same
+three files automatically, without an auto-generated ZIP. The optional old
+`pack` command remains for compatibility.

@@ -118,7 +118,8 @@ class FrontierCliTests(unittest.TestCase):
         self.assertEqual(cli.main(['--jobs', str(self.jobs), 'expand',
                                   '--direction', 'east', '--provider', 'chatgpt']), 0)
         bundle = self.jobs / 'tile_x+1_y+0' / 'chatgpt_bundle.zip'
-        self.assertTrue(bundle.exists())
+        self.assertFalse(bundle.exists())
+        self.assertTrue((self.jobs / 'tile_x+1_y+0' / 'input/generation_canvas.png').exists())
         self.assertEqual(cli.main(['--jobs', str(self.jobs), 'pack',
                                   '--job', 'tile_x+1_y+0']), 0)
 

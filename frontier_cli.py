@@ -122,9 +122,76 @@ def prepare_expansion(jobs, direction, anchor=None, name=None, context=700,
             'mask': str(path / 'input' / 'generation_mask.png'),
             'prompt': str(path / 'input' / 'prompt.txt'),
             'context': str(path / 'input' / 'context_board.png'),
+            'debug': str(path / 'input' / 'neighbor_debug_preview.png'),
         }
         data['generated'] = str(path / 'generated.png')
     return data
+
+
+
+def rebuild_job(jobs: Path, job: str, context=None):
+    """Safely replace job inputs while leaving published terrain untouched."""
+    jobs = Path(jobs).resolve()
+    if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.+-]{0,99}', job) or job in {'center', 'jobs'} or job.startswith('_'):
+        raise ValueError('Invalid job name')
+    folder = jobs / job
+    old_meta_path = folder / 'grid_job.json'
+    published_meta_path = folder / 'region.json'
+    if not old_meta_path.is_file() or not published_meta_path.is_file():
+        raise ValueError('rebuild-job requires a published region and grid_job.json')
+    old = load_json(old_meta_path)
+    published = load_json(published_meta_path)
+    x, y = int(old['target']['x']), int(old['target']['y'])
+    if (int(published['x']), int(published['y'])) != (x, y) or published['id'] != old['region_id']:
+        raise ValueError('Published region coordinates/id differ from prepared job')
+    regs = discover(jobs)
+    if regs.get((x, y), {}).get('id') != published['id']:
+        raise ValueError('Published tile is not registered at the expected coordinates')
+    side = old['primary_side']
+    if side not in DIRS or (x + DIRS[side][0], y + DIRS[side][1]) not in regs:
+        raise ValueError(f'Existing primary neighbor {side} is unavailable')
+    ctx = int(context if context is not None else old.get('context', 700))
+    if ctx < 0:
+        raise ValueError('Context must be nonnegative')
+
+    stage = Path(tempfile.mkdtemp(prefix='rebuild_stage_', dir=jobs))
+    moved = []
+    try:
+        prepare(jobs, stage, x, y, side, region_id=published['id'],
+                context=ctx, allow_occupied_id=published['id'])
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        backup = folder / 'backups' / ('input_' + stamp)
+        backup.mkdir(parents=True, exist_ok=False)
+        for name in ('input', 'grid_job.json', 'generated.png', 'draft', 'quality_report.json'):
+            src = folder / name
+            if src.exists():
+                dest = backup / name
+                src.rename(dest)
+                moved.append((src, dest))
+        for name in ('input', 'grid_job.json'):
+            (stage / name).rename(folder / name)
+        return {'job': job, 'target': {'x': x, 'y': y},
+                'backup': str(backup),
+                'canvas': str(folder / 'input/generation_canvas.png'),
+                'mask': str(folder / 'input/generation_mask.png'),
+                'prompt': str(folder / 'input/prompt.txt'),
+                'debug': str(folder / 'input/neighbor_debug_preview.png'),
+                'published_unchanged': str(folder / 'tile.png')}
+    except Exception:
+        old_names = {src.name for src, _ in moved}
+        for name in ('input', 'grid_job.json'):
+            candidate = folder / name
+            if name in old_names and candidate.exists():
+                if candidate.is_dir():
+                    shutil.rmtree(candidate)
+                else:
+                    candidate.unlink()
+        for src, dest in reversed(moved):
+            if dest.exists():
+                dest.rename(src)
+        raise
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
 
 
 def pack_chatgpt(jobs: Path, job: str) -> Path:
@@ -370,11 +437,11 @@ def show_status(jobs):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description='Expand The Frontier world with art tiles and ChatGPT handoff ZIPs.')
+    p = argparse.ArgumentParser(description='Expand The Frontier world with manual canvas/mask/prompt.')
     p.add_argument('--jobs', default='jobs', help='Jobs directory; Docker mounts it as /app/jobs')
     sub = p.add_subparsers(dest='command', required=True)
     sub.add_parser('status', help='List published and pending tiles')
-    expand = sub.add_parser('expand', help='Prepare a free world tile and create ChatGPT handoff ZIP')
+    expand = sub.add_parser('expand', help='Prepare canvas, mask and prompt for a new tile')
     expand.add_argument('--direction', choices=DIRS, required=True)
     expand.add_argument('--provider', choices=['chatgpt'], default='chatgpt')
     expand.add_argument('--from', dest='anchor', help='Published tile ID or grid coordinates x,y')
@@ -382,6 +449,9 @@ def build_parser():
     expand.add_argument('--context', type=int, default=700)
     expand.add_argument('--overlap', type=int, default=None)
     expand.add_argument('--dry-run', action='store_true')
+    rebuild = sub.add_parser('rebuild-job', help='Refresh canvas/mask/prompt using all overlapping neighbors')
+    rebuild.add_argument('--job', required=True)
+    rebuild.add_argument('--context', type=int, default=None)
     pack = sub.add_parser('pack', help='Create/re-create a ChatGPT ZIP for an existing pending job')
     pack.add_argument('--job', required=True)
     finalize = sub.add_parser('finalize', help='Validate and publish a ChatGPT-generated PNG')
@@ -414,6 +484,8 @@ def main(argv=None):
         elif args.command == 'export':
             result = {'manifest': str(export_tiles(jobs, args.format, args.quality, args.force, args.lossy)),
                       'viewer': str(jobs / '_export' / 'index.html')}
+        elif args.command == 'rebuild-job':
+            result = rebuild_job(jobs, args.job, context=args.context)
         elif args.command == 'pack':
             bundle = pack_chatgpt(jobs, args.job)
             result = {'job': args.job, 'chatgpt_bundle': str(bundle),
@@ -433,12 +505,11 @@ def main(argv=None):
             result = prepare_expansion(jobs, args.direction, args.anchor, args.job,
                                        args.context, args.overlap, args.dry_run)
             if not args.dry_run:
-                bundle = pack_chatgpt(jobs, result['job'])
-                result['provider'] = args.provider
-                result['chatgpt_bundle'] = str(bundle)
-                result['next_step'] = (f'Upload {bundle} to ChatGPT. Save the output PNG as '
-                                       f'jobs/{result["job"]}/generated.png, then run '
-                                       f'finalize --job {result["job"]}.')
+                result['next_step'] = (
+                    'Send input/generation_canvas.png, input/generation_mask.png '
+                    'and input/prompt.txt to ChatGPT; save its PNG as generated.png '
+                    'and run finalize.'
+                )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (ValueError, FileNotFoundError, FileExistsError, RuntimeError, OSError) as exc:

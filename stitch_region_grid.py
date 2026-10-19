@@ -756,7 +756,25 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
     # Diagonal grid cells overlap physically by ov×ov pixels even though they
     # are not returned by tile_grid.neighbors(). Reconcile those corner squares
     # explicitly after all side operations so one side cannot overwrite another.
-    corner_reconciliation = reconcile_diagonal_corners(region, job, meta, layout)
+    if meta.get('neighbor_lock_version') == 1:
+        # Locks are an exact compositor snapshot; use them AFTER all legacy
+        # merges so neither alignment nor diagonal hard-cuts can alter them.
+        with Image.open(job / 'input/neighbor_lock.png') as im:
+            lock = np.asarray(im.convert('RGB'))
+        with Image.open(job / 'input/neighbor_mask.png') as im:
+            lock_mask = np.asarray(im.convert('L'))
+        if lock.shape != region.shape or lock_mask.shape != region.shape[:2]:
+            raise ValueError('Neighbor lock dimensions differ from tile layout')
+        with Image.open(job / 'input/generation_mask.png') as im:
+            generated_mask = np.asarray(im.convert('L'))
+        if not np.array_equal(lock_mask, generated_mask):
+            raise ValueError('Neighbor mask differs from generation mask')
+        region[lock_mask == 0] = lock[lock_mask == 0]
+        # Old hard-corner reconciliation is not needed: fixed diagonal pieces
+        # already come from the same visible-world composite as the side strips.
+        corner_reconciliation = []
+    else:
+        corner_reconciliation = reconcile_diagonal_corners(region, job, meta, layout)
 
     out = job / 'draft' if draft else job
     out.mkdir(exist_ok=True)

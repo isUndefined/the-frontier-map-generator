@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageOps, ImageDraw
 from tile_grid import DIRS, geometry, discover, neighbors, open_tile, save_json
+from neighbor_canvas import compose_lock, save_debug_preview
 
 
 def resolve_job_path(jobs, job):
@@ -529,7 +530,7 @@ def make_corner_guide(sources, sides, ov, context, out_path):
 
 
 def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
-            context=700, width=None, height=None):
+            context=700, width=None, height=None, allow_occupied_id=None):
     jobs, job = resolve_job_path(jobs, job)
     if job.parent != jobs or job.name.startswith('_') or job.name == 'center':
         raise ValueError('Job must be a direct child of jobs, excluding center and _*')
@@ -538,11 +539,11 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
 
     layout = geometry(jobs, width, height, overlap)
     regs = discover(jobs)
-    if (x, y) in regs:
+    if (x, y) in regs and regs[(x, y)]['id'] != allow_occupied_id:
         raise ValueError(f'Grid position {(x, y)} is occupied')
 
     region_id = region_id or job.name
-    if region_id in {r['id'] for r in regs.values()}:
+    if region_id in {r['id'] for pos, r in regs.items() if pos != (x, y)}:
         raise ValueError(f'Region ID already exists: {region_id}')
 
     neigh = neighbors(regs, x, y)
@@ -558,20 +559,10 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
     }
     w, h, ov = layout['width'], layout['height'], layout['overlap']
 
-    canvas = np.zeros((h, w, 3), np.uint8)
-    mask = np.full((h, w), 255, np.uint8)
-
-    # Fix ALL known neighbor overlaps, not only the primary one. This gives the
-    # generator a strong L/T-shaped anchor when two or more neighbors exist.
-    apply_order = [primary_side] + [s for s in neigh if s != primary_side]
-    for side in apply_order:
-        apply_neighbor_overlap(canvas, mask, np.array(sources[side]), side, ov)
-
-    # Diagonal neighbors are REFERENCE ONLY.
-    # Do NOT write their overlap×overlap pixels into generation_canvas/mask.
-    # Freezing the diagonal square creates an over-constrained three-way corner
-    # and tends to produce pasted/floating mountain masses. Cardinal overlaps
-    # remain exact black/preserve anchors; diagonals guide composition only.
+    # Build exact fixed terrain from all real pixel intersections, including
+    # diagonal corners. The old target image never becomes its own reference.
+    canvas, mask, ownership, intersections = compose_lock(jobs, x, y, layout)
+    apply_order = [primary_side] + [side for side in neigh if side != primary_side]
 
     # The target core is the region not occupied by the primary overlap strip.
     core = (w - ov) if primary_side in ('east', 'west') else (h - ov)
@@ -584,6 +575,9 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
 
     Image.fromarray(canvas).save(inp / 'generation_canvas.png')
     Image.fromarray(mask).save(inp / 'generation_mask.png')
+    Image.fromarray(canvas).save(inp / 'neighbor_lock.png')
+    Image.fromarray(mask).save(inp / 'neighbor_mask.png')
+    save_debug_preview(inp / 'neighbor_debug_preview.png', canvas, mask, ownership, intersections)
     sources[primary_side].save(inp / 'source_region_native.png')
 
     neighbor_files = {primary_side: 'input/source_region_native.png'}
@@ -664,119 +658,37 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
 
     landmark_plan = choose_landmark_cluster(x, y)
 
+    # Only canvas, mask and prompt are needed in ChatGPT.
     prompt_lines = [
-        'Create one continuous regional map expansion for The Frontier.',
-        f'Return exactly one new tile image sized {w}x{h}. Do NOT return the larger world,',
-        'do NOT add blank margins, and do NOT change the aspect ratio.',
-        f'Primary existing neighbor: {primary_side.upper()}. Shared overlap: {ov}px.',
-        f'Known neighbors around the new tile: ' + ', '.join(f'{s.upper()}={neigh[s]["id"]}' for s in apply_order) + '.',
-        'Use generation_canvas.png and generation_mask.png: white means generate,',
-        'black means preserve exactly. Every black strip already comes from a real existing neighbor.',
-        'Do not redraw, shift, scale or reinterpret any black-masked pixels.',
-        f'Fixed overlap sides in the canvas: {", ".join(s.upper() for s in fixed_sides)}.',
+        'Create exactly ONE new The Frontier regional terrain tile.',
+        f'Canvas size: {w} x {h} pixels, preserve the exact aspect ratio.',
+        f'Target world grid: ({x}, {y}). Primary neighbor: {primary_side.upper()}.',
+        f'Overlap width: {ov} px. Existing sources intersecting this tile: ' +
+        ', '.join(f'{i["id"]} {tuple(i["grid"])}' for i in intersections) + '.',
         '',
-        'Additional references:',
-        f'- source_region_native.png is the full primary neighbor tile ({primary_side.upper()}).',
-        f'- the {primary_side.upper()} side is the main terrain authority: inherit its large landforms first, then introduce new variation deeper inside the tile.',
-        f'- primary_context.png shows extra context beyond the primary overlap ({context_files[primary_side]["context_px"]}px).',
-        f'- where the {primary_side.upper()} border approaches a diagonal-corner reference, keep the primary overlap exact and generate a gradual bridge toward the diagonal terrain mass and cloud flow.',
+        'Use the attached generation_canvas.png and generation_mask.png.',
+        'BLACK mask pixels are already-visible terrain from the existing world:',
+        'preserve them EXACTLY. WHITE pixels are the ONLY terrain to create.',
+        'The preserved portions include all cardinal overlaps AND diagonal corners.',
+        'Do not shift, scale, redraw, mirror, crop or reinterpret black-mask terrain.',
+        'Do not paste any recognizable mountains, lakes, settlements or waterfalls',
+        'from the locked portions into the new white area; grow NEW geography.',
+        '',
+        'Join the locked terrain naturally: continue ridges, foothills, cliffs,',
+        'valleys, river courses, roads, forest masses, clouds and light direction.',
+        'At each corner continue terrain in BOTH directions, not just across',
+        'the longest boundary; avoid sudden shelves, rectangular mountain masses',
+        'or repeated landmark compositions close to the seam.',
+        'High oblique 3/4 aerial medieval regional map, realistic painterly style.',
+        'No UI, text, labels, borders, markings, or tile divisions.',
+        f'Return exactly a single {w}x{h} tile image and nothing else.',
     ]
-
-    for side in secondary_sides:
-        prompt_lines.append(
-            f'- input/neighbors/{side}.png is the full {side.upper()} neighbor tile; '
-            f'input/neighbors/{side}_context.png shows extra context beyond that overlap '
-            f'({context_files[side]["context_px"]}px).'
-        )
-
-    if corner_guides:
-        prompt_lines.append(
-            '- corner_guide_*.png images show the critical corner where the primary overlap meets a secondary neighbor.'
-        )
-    if diag:
-        prompt_lines.extend([
-            '',
-            'Critical diagonal corner references:',
-            '- diagonal tiles are visual/compositional references only; they are NOT black/preserve pixels in generation_canvas.png.',
-            '- use them to continue corner-specific terrain masses and cloud/fog flow, but do not paste or rigidly reproduce the diagonal tile.',
-            '- keep the primary/cardinal black overlap exact.',
-            '',
-            'Corner bridge rule:',
-            '- the model must create a natural bridge between the exact primary overlap and the diagonal reference.',
-            '- the first 180–320 px inward from the relevant corner should favor continuation over novelty.',
-            '- do not create a floating new plain, abrupt cliff break, pasted mountain block, or disconnected cloud bank beside the corner.',
-            '- if the diagonal shows mountains and clouds near the corner, continue those masses/directions smoothly into the new tile while still honoring the primary overlap.',
-        ])
-        for corner, r in diag.items():
-            prompt_lines.append(
-                f'- {corner.upper()}: {r["id"]}; full tile=input/diagonals/{corner}.png; '
-                f'corner context=input/diagonals/{corner}_corner_context.png.'
-            )
-            if corner in diagonal_bridge_guides:
-                prompt_lines.append(
-                    f'- {corner.upper()} bridge guide: {diagonal_bridge_guides[corner]["file"]}. '
-                    f'{diagonal_bridge_guides[corner]["direction"]}'
-                )
-
-    prompt_lines.extend([
-        '',
-        'Highest priority: the new tile must continue smoothly from EVERY existing neighbor,',
-        'not only from the primary one. Respect all fixed overlap strips simultaneously.',
-        'Large-scale terrain continuity is mandatory, not optional.',
-        '- treat preserved borders as the start of real landforms, not just color references.',
-        '- if a preserved border contains a mountain wall, ridge chain, cliff band, steep slope or foothill system, continue that terrain mass naturally into the white area.',
-        '- do NOT let mountains abruptly stop at the border and immediately switch to a wide new flat plain, open basin or unrelated terrain regime.',
-        '- mountain masses should continue, branch, step down through foothills, open into passes, or gradually descend into valleys.',
-        '- rivers, lakes and coastlines must respect the existing relief; do not create floating-looking terrain shelves.',
-        '- keep the perceived elevation structure coherent across the border: ridge direction, valley depth, foothills and foreground scale must stay believable.',
-        '- clouds or fog may continue across the border, but they must not be used to hide a broken terrain transition.',
-    ])
-
-    if corner_sides:
-        prompt_lines.append(
-            'Pay special attention to the shared corner where ' +
-            ' and '.join(f'{primary_side.upper()} + {side.upper()}' for side in corner_sides) +
-            ' meet: terrain, rivers, roads, forests and settlements must remain coherent through that corner.'
-        )
-
-    if diag:
-        prompt_lines.append(
-            'For every diagonal corner reference, preserve terrain logic and cloud flow continuity: '
-            'continue the visible ridge direction, foothill structure, forest masses and cloud banks into the new territory without literal copy-pasting.'
-        )
-        prompt_lines.append(
-            'Use any *_bridge_guide.png as the strongest clue for the troublesome corner transition: '
-            'it shows the already-existing junction around the target, and the new tile should feel like a believable continuation away from that junction.'
-        )
-
     if landmark_plan.get('enabled'):
-        theme = landmark_plan['theme']
         prompt_lines.extend([
             '',
-            'Special landmark plan:',
-            f"- cluster: {theme['title']}",
-            f"- phase in this tile: {landmark_plan['phase']}",
-            f"- influence strength: {landmark_plan['influence']} ({landmark_plan['intensity']})",
-            f"- summary: {theme['summary']}",
-            f"- desired emphasis: {landmark_plan['emphasis']}",
-            f"- suggested features: {', '.join(theme['features'])}",
-            '- rule: preserve all neighbor continuity first, then let the new territory gradually reveal this landmark theme, strongest away from fixed overlaps.',
-            '- use only 2-3 dominant supporting cues; do not force every listed feature into the image.',
+            f'Optional region landmark: {landmark_plan["theme"]["title"]}.',
+            'Keep it away from black-mask terrain and subordinate to continuity.',
         ])
-    else:
-        prompt_lines.extend([
-            '',
-            'Special landmark plan:',
-            '- cluster: none for this tile',
-            '- rule: avoid introducing a major landmark; keep this tile as a transition or standard region.',
-        ])
-
-    prompt_lines.extend([
-        'Continue rivers, roads, ridges, coastlines, forests and settlements naturally into the new territory.',
-        'Preserve camera, terrain scale, lighting, river width, forest density and overall style.',
-        'High oblique 3/4 aerial regional map, realistic painterly medieval frontier.',
-        'No UI, text, labels, borders, markers, mirrored copies or panel divisions.',
-    ])
 
     (inp / 'prompt.txt').write_text('\n'.join(prompt_lines) + '\n', encoding='utf-8')
 
@@ -803,11 +715,13 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
         'diagonal_files': diagonal_files,
         'diagonal_contexts': diagonal_contexts,
         'diagonal_bridge_guides': diagonal_bridge_guides,
-        'fixed_diagonal_corners': [],
+        'fixed_diagonal_corners': sorted(diag.keys()),
         'diagonal_reference_corners': sorted(diag.keys()),
         'diagonal_anchor_version': 5,
-        'diagonal_anchor_mode': 'reference_only_soft_corner_bridge',
-        'terrain_continuity_version': 2,
+        'diagonal_anchor_mode': 'visible_world_locked_corners',
+        'terrain_continuity_version': 3,
+        'neighbor_lock_version': 1,
+        'overlap_intersections': intersections,
         'corner_influence_zone_px': [180, 280],
         'landmark_plan': landmark_plan,
         'fixed_sides': fixed_sides,
