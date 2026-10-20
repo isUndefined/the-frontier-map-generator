@@ -106,7 +106,7 @@ class FrontierCliTests(unittest.TestCase):
             self.assertIn('input/context_board.png', names)
             self.assertIn('job_info.json', names)
             guide = z.read('CHATGPT_INSTRUCTIONS.md').decode()
-            self.assertIn('438 x 426', guide)
+            self.assertIn('1536 x 1024', guide)
             self.assertIn('Do not resize', guide)
             self.assertNotIn(str(self.jobs), z.read('job_info.json').decode())
         self.assertEqual(cli.pack_chatgpt(self.jobs, plan['job']), bundle)

@@ -112,8 +112,9 @@ Send **three separate files** to ChatGPT (no ZIP needed):
 
 `neighbor_debug_preview.png` shows where neighboring terrain was locked.
 The lock uses the same world-coordinate geometry and dependency-first paint
-order as the viewer, including all diagonal intersections. For new prepare v2 jobs the generated image
-must be the full 2056×1325 px canvas; the published tile remains 1672×941 px. Save it at `jobs/tile_x-2_y+0/generated.png`.
+order as the viewer, including all diagonal intersections. For new jobs, each generated image is a native 1536×1024 local pass
+(1024×1536 for north/south); the assembled tile remains 1672×941 px.
+See the native-pass instructions below before finalizing. Save it at `jobs/tile_x-2_y+0/generated.png`.
 
 ```sh
 docker compose run --rm generator finalize --job tile_x-2_y+0 --draft
@@ -125,50 +126,36 @@ from the locked visible-world composite. Newly expanded jobs produce the same
 three files automatically, without an auto-generated ZIP. The optional old
 `pack` command remains for compatibility.
 
-## Prepare v2: world context without moving geography
+## Native local outpainting: current default
 
-New `expand` and `rebuild-job` inputs use `chatgpt_world_canvas_v3` with
-`prepare_version: 2`. Existing prepared jobs keep their workflow until rebuilt.
-The published layout remains 1672×941 with overlap 256. The generation canvas
-adds a native 192px halo on all four sides: **2056×1325**. There is no scaling.
-All surrounding source crops use actual world-space intersections in exactly
-the atlas dependency paint order. The old target is excluded from context.
+The large whole-tile generation was insufficient in practice: image generators
+could resize the canvas and invent an unrelated valley against a narrow existing
+mountain edge. New `expand` and `rebuild-job` inputs now use **native local passes**
+(`prepare_version: 3`, `chatgpt_native_patches_v1`). Existing prepared jobs retain
+their format until rebuilt. Layout, published pixels and overlap are unchanged.
 
-For target (-2,0), world origin is (-2832,0); canvas origin is (-3024,-192).
-The exact output tile crop is **[192,192,1864,1133)** (XYXY, half-open).
-The east neighbor `west_01` contributes source [0,0,448,941), of which only
-[0,0,256,941) overlaps the tile. The remaining 192px stays OUTSIDE the target.
-`north_02` contributes [0,493,448,941), with a real shared 256×256 corner
-[0,685,256,941). `south_01` contributes [0,0,448,448), with shared corner
-[0,0,256,256). Later sources own intersections, as in the world viewer.
+Each request uses a standard **1536×1024** canvas (1024×1536 for north/south),
+with the real 256px overlap and up to 700px of real adjacent context. Only a
+local band of new territory is editable. Work proceeds from the existing seam
+outwards. Accepted pixels become exact context for the next pass. No pixel is
+resized, rotated, shifted or stretched. Diagonal intersections and source paint
+order still come from the same coordinate-based world compositor as the atlas.
 
-All existing world pixels are locked. The 192px transition is in new editable
-territory adjacent to known world, including diagonal corner boundaries;
-other new territory is free. Unknown padding outside the tile is also locked.
-No overlap geography is repeated or moved to make the transition.
+For the west tile (-2,0), the default plan has three passes:
 
-In `input/`:
+| Pass | Editable target x pixels | Canvas x interval relative to tile |
+| --- | --- | --- |
+| 1 | [836,1416) | [836,2372) |
+| 2 | [256,836) | [256,1792) |
+| 3 | [0,256) | [0,1536) |
 
-- `generation_canvas.png`, `generation_mask.png`, `prompt.txt`: the only uploads.
-- `zones.json`: world/canvas origins, explicit crop, all source crops and paint order.
-- `generation_zones.png`: exact pixel partition (0 padding, 1 lock, 2 transition, 3 free).
-- `prepare_debug_overlay.png`: red lock, yellow transition, green free, gray padding;
-  white rectangle is the published tile crop. Do not upload this debug image.
-- `neighbor_map.json`: all actual coordinate neighbors.
-- `neighbor_lock.png`, `neighbor_mask.png`: immutable tile-sized world snapshot,
-  retained for stitch/finalize and exact overlap restoration.
+Each canvas spans target y [-42,982). Its black padding stays outside the
+1672×941 target. Pass 1 contains source [0,0,956,941) from `west_01` and the
+real intersections of `north_02` and `south_01`. Geography is never moved into
+the new band. The first 192px next to known terrain is marked transition in
+`generation_zones.png`; other editable pixels are free.
 
-ChatGPT must return the FULL canvas at the dimensions in the prompt. If it
-returns a different size, regenerate: both finalize and direct stitch reject
-it rather than resize or guess the crop. Prepare v2 never automatically warps
-world geometry. Anchor QA ignores unknown black padding, checks real context
-and shared tile pixels, and rejects changed anchors by default. No artistic
-continuity is guaranteed by geometry alone; inspect the strict draft.
-Seam QA checks every cardinal neighbor. The old adaptive overlap handoff and
-its tone ramp remain available for already prepared legacy jobs; they do not
-repaint prepare v2's locked overlaps.
-
-Update and safely rebuild an existing published job:
+Update and rebuild a published job:
 
 ```sh
 git switch feature/docker-world-generator
@@ -177,17 +164,62 @@ docker compose build generator
 docker compose run --rm generator rebuild-job --job tile_x-2_y+0
 ```
 
-Rebuild stages the new inputs before replacing old inputs and archives stale
-generated art, draft reports and optional ZIP. Failure during installation
-restores the old inputs. Published tile/region metadata stays unchanged.
-Send the three new inputs to ChatGPT; save the full output as
-`jobs/tile_x-2_y+0/generated.png`, then:
+For EACH pass, send these three new files to ChatGPT, without a ZIP:
+
+- `jobs/tile_x-2_y+0/input/generation_canvas.png`
+- `jobs/tile_x-2_y+0/input/generation_mask.png`
+- `jobs/tile_x-2_y+0/input/prompt.txt`
+
+Save its **1536×1024** PNG as `jobs/tile_x-2_y+0/generated.png`. Inspect the
+actual terrain connection; black/white mask boundaries must not become cliffs
+or separate compositions. Accept passes 1 and 2 with:
+
+```sh
+docker compose run --rm generator advance-job --job tile_x-2_y+0 --strict
+```
+
+`advance-job` archives the current three inputs, generated image and acceptance
+report, then installs the next handoff atomically. It removes the stale root
+`generated.png` into a backup so it cannot be reused for the next pass. A failed
+installation restores all prior inputs and output. Published art is untouched.
+`draft/pass_preview.png` and `draft/pass_quality_report.json` show rejected
+strict passes. Regenerate that same pass instead of advancing it.
+
+After generating pass 3, assemble and inspect the whole tile:
 
 ```sh
 docker compose run --rm generator finalize --job tile_x-2_y+0 --draft --strict
-# After inspecting the draft and its QA report:
+# After inspection:
 docker compose run --rm generator finalize --job tile_x-2_y+0 --replace --strict
 ```
+
+Finalize refuses an incomplete tile. For other layouts/neighbors the pass count
+can differ; `zones.json` and command output identify the current pass. Re-running
+`advance-job` on the last pass leaves inputs unchanged and tells you to finalize.
+
+The final image is still **1672×941**. Only new white-mask pixels are taken
+from generated passes. Original locks and accepted previous bands remain exact.
+Anchor validation uses native pixel error first; if texture/color changed, it
+requires at least 60 distributed consistent landmark matches, with 90% within
+2px and fitted drift <=2px. This is validation only: **no transform is applied**.
+A result with the former ~7px shift is rejected. Existing duplication QA remains
+mandatory; strict seam QA also checks joins between local passes. These checks
+are useful proxies, not proof of artistic quality; inspect the full world draft.
+
+`input/zones.json` records the exact current canvas/world/edit rectangles,
+source crops, actual neighbors and accepted passes. `prepare_debug_overlay.png`
+shows red known pixels, yellow transition, green free and gray padding.
+`input/patch_state.json`, `accepted_tile.png` and `remaining_mask.png` retain
+progress; `input/passes/` contains accepted handoffs. A rebuild archives ALL of
+this progress before starting over. `neighbor_lock.png` and `neighbor_mask.png`
+remain the immutable tile-sized source snapshot.
+
+### Historical whole-canvas jobs
+
+Already prepared `prepare_version: 2` jobs still use their exact original
+2056×1325 canvas and explicit tile crop. Existing v1 adaptive overlap jobs also
+retain their old masks and handoff behavior. No old job is silently converted
+or rescaled. To use native passes, run `rebuild-job` and generate new art.
 
 ## Whole-world draft QA
 

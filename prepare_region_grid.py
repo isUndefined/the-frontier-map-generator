@@ -533,14 +533,14 @@ def make_corner_guide(sources, sides, ov, context, out_path):
 
 def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
             context=700, width=None, height=None, allow_occupied_id=None,
-            prepare_version=2, transition=192):
+            prepare_version=3, transition=192):
     jobs, job = resolve_job_path(jobs, job)
     if job.parent != jobs or job.name.startswith('_') or job.name == 'center':
         raise ValueError('Job must be a direct child of jobs, excluding center and _*')
     if job.exists() and any(job.iterdir()):
         raise FileExistsError(f'{job} is not empty; use a new job directory')
 
-    if prepare_version not in (1, 2) or transition < 0 or context < 0:
+    if prepare_version not in (1, 2, 3) or transition < 0 or context < 0:
         raise ValueError('Invalid prepare version, transition or context')
     layout = geometry(jobs, width, height, overlap)
     regs = discover(jobs)
@@ -702,7 +702,7 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
         ])
 
     zones = None
-    if prepare_version == 2:
+    if prepare_version in (2, 3):
         zones = save_generation_artifacts(inp, jobs, x, y, layout, transition)
         cw, ch = zones['canvas_size']
         prompt_lines = [
@@ -733,6 +733,7 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
     save_json(job / 'grid_job.json', {
         'version': 1,
         'prepare_version': prepare_version,
+        'requested_context': context,
         'generation_tile_crop': zones['tile_crop'] if zones else [0, 0, w, h],
         'generation_world_origin': zones['canvas_world_origin'] if zones else None,
         'transition': transition if zones else None,
@@ -775,6 +776,10 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
         'workflow': 'chatgpt_world_canvas_v3' if zones else 'chatgpt_tile_canvas_v2',
     })
     save_json(jobs / 'layout.json', layout)
+    if prepare_version == 3:
+        from generation_patches import initialize
+        from tile_grid import load_json
+        initialize(job, load_json(job / 'grid_job.json'))
     print(
         f'Target ({x},{y}); tile={w}x{h}; fixed_sides={fixed_sides}; '
         f'diagonal_references={sorted(diag.keys())}; terrain_continuity=on'

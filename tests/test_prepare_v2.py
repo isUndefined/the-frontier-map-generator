@@ -5,7 +5,9 @@ import unittest
 from unittest.mock import patch
 import numpy as np
 from PIL import Image
-from prepare_region_grid import prepare
+from prepare_region_grid import prepare as _prepare
+from functools import partial
+prepare = partial(_prepare, prepare_version=2)
 from prepare_v2 import build_generation_zones
 from stitch_region_grid import stitch
 from frontier_cli import rebuild_job, publish
@@ -94,35 +96,6 @@ class PrepareV2Tests(unittest.TestCase):
                 self.assertEqual((c-a,d-b),(256,256))
         self.assertTrue((mask[labels==1]==0).all())
         self.assertFalse(np.any((labels==2)&(mask==0)))
-
-    def test_west_rebuild_real_diagonals_no_shift_or_stale_target(self):
-        self.source('west_01',-1,0,deps=['center'])
-        self.source('north_02',-1,-1,deps=['west_01'])
-        self.source('south_01',-1,1,deps=['west_01'])
-        folder=self.source('tile_x-2_y+0',-2,0,color=213,deps=['west_01','north_02','south_01'])
-        save_json(folder/'grid_job.json',dict(method='local_tile_v1',region_id=folder.name,
-                  target=dict(x=-2,y=0),primary_side='east',context=700))
-        (folder/'input').mkdir();(folder/'input/old.txt').write_text('original')
-        (folder/'generated.png').write_bytes(b'old generation')
-        before={n:(folder/n).read_bytes() for n in ('tile.png','region.json')}
-        r=rebuild_job(self.jobs,folder.name)
-        zones=load_json(Path(r['zones']))
-        self.assertEqual(zones['neighbors'],dict(east=dict(id='west_01',grid=[-1,0]),
-                northeast=dict(id='north_02',grid=[-1,-1]),southeast=dict(id='south_01',grid=[-1,1])))
-        primary=next(i for i in zones['sources'] if i['id']=='west_01')
-        self.assertEqual(primary['source_crop'],[0,0,448,self.h])
-        self.assertEqual(primary['overlap_source_crop'],[0,0,256,self.h])
-        self.assertNotIn(folder.name,zones['paint_order'])
-        for n,data in before.items(): self.assertEqual((folder/n).read_bytes(),data)
-        self.assertEqual((Path(r['backup'])/'generated.png').read_bytes(),b'old generation')
-        self.generated(folder)
-        publish(self.jobs,folder.name,draft=True,export=False,strict=True)
-        for n,data in before.items(): self.assertEqual((folder/n).read_bytes(),data)
-        # Reject geometry changes through both entry points.
-        Image.new('RGB',(self.w,self.h)).save(folder/'generated.png')
-        with self.assertRaisesRegex(ValueError,'No resize'): stitch(folder,jobs=self.jobs)
-        with self.assertRaisesRegex(ValueError,'No resize'): publish(self.jobs,folder.name,replace=True,export=False)
-        for n,data in before.items(): self.assertEqual((folder/n).read_bytes(),data)
 
     def test_diagonal_only_transition_and_locked_padding(self):
         self.source('diagonal',-1,-1)

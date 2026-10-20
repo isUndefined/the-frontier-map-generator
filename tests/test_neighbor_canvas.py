@@ -59,10 +59,13 @@ class NeighborCanvasTests(unittest.TestCase):
         mask=np.asarray(Image.open(r['mask']))
         canvas=np.asarray(Image.open(r['canvas']))
         meta=json.loads((self.target/'grid_job.json').read_text())
-        a,b,c,d=meta['generation_tile_crop']
-        np.testing.assert_array_equal(canvas[b,c-1],(195,40,100))
-        np.testing.assert_array_equal(canvas[d-1,c-1],(10,100,190))
-        self.assertEqual(mask[b,c-1],0)
+        patch=meta['generation_patch']
+        ox,oy=patch['canvas_world_origin']
+        # The original corners are in the current native patch at world positions.
+        sx=-46
+        np.testing.assert_array_equal(canvas[-oy,sx-ox],(195,40,100))
+        np.testing.assert_array_equal(canvas[self.h-1-oy,sx-ox],(10,100,190))
+        self.assertEqual(mask[-oy,sx-ox],0)
         self.assertTrue(Path(r['prompt']).exists())
         self.assertTrue(Path(r['debug']).exists())
         self.assertEqual(json.loads((self.target/'grid_job.json').read_text())['neighbor_lock_version'],2)

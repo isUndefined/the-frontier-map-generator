@@ -197,6 +197,96 @@ def rebuild_job(jobs: Path, job: str, context=None):
         shutil.rmtree(stage, ignore_errors=True)
 
 
+def advance_job(jobs, job, generated=None, strict=False):
+    """Accept one native outpaint pass and stage the next three-file handoff."""
+    import numpy as np
+    from generation_patches import apply_patch_result, write_handoff
+    from stitch_region_grid import prepare_alignment
+    jobs = Path(jobs).resolve()
+    folder = jobs / job
+    if folder.parent != jobs or not (folder / 'grid_job.json').is_file():
+        raise ValueError('No prepared job')
+    meta = load_json(folder / 'grid_job.json')
+    if meta.get('prepare_version') != 3:
+        raise ValueError('advance-job requires native patch preparation; rebuild existing jobs first')
+    image = Path(generated).resolve() if generated else folder / 'generated.png'
+    with Image.open(image) as im:
+        actual = im.size
+        expected = tuple(meta['expected_generation_size'])
+        if actual != expected:
+            raise ValueError(f'Generated image is {actual}, expected {expected}. No resize or upscaling permitted')
+        result = np.array(im.convert('RGB'))
+    # Direct registration is never applied. A changed/moved anchor is rejected.
+    _, report = prepare_alignment(folder, result, expected, actual, meta)
+    target, remaining, state = apply_patch_result(folder, result)
+    if not np.any(remaining):
+        return {'job':job,'ready_for_finalize':True,
+                'next_step':'This is the last pass. Run finalize --draft --strict, inspect, then finalize --replace --strict for an existing publication.'}
+    from seam_diagnostics import analyze_seam
+    w,h=meta['target_region_size']
+    left,top,right,bottom=state['passes'][state['current']]['tile_edit_rect']
+    side=meta['primary_side']
+    band={'east':w-right,'west':left,'north':top,'south':h-bottom}[side]
+    seam=analyze_seam(target,side,band)
+    preview=folder/'draft'
+    preview.mkdir(exist_ok=True)
+    Image.fromarray(target).save(preview/'pass_preview.png')
+    save_json(preview/'pass_quality_report.json',{'alignment':report,'seam_quality':seam})
+    if strict and seam['status']=='rejected':
+        raise ValueError('Pass seam QA rejected; inspect draft/pass_preview.png and regenerate this pass')
+    old_index = state['current']
+    state['accepted_passes'].append(old_index + 1)
+    state['current'] += 1
+    while state['current'] < len(state['passes']):
+        a,b,c,d=state['passes'][state['current']]['tile_edit_rect']
+        if np.any(remaining[b:d,a:c]):break
+        state['current'] += 1
+    if state['current'] >= len(state['passes']):
+        raise ValueError('Pass plan ended before covering new territory')
+    stage = Path(tempfile.mkdtemp(prefix='advance_stage_', dir=jobs))
+    moved, installed = [], []
+    try:
+        shutil.copytree(folder / 'input', stage / 'input')
+        Image.fromarray(target).save(stage / 'input/accepted_tile.png')
+        Image.fromarray(remaining).save(stage / 'input/remaining_mask.png')
+        save_json(stage / 'input/patch_state.json', state)
+        history = stage / 'input/passes' / f'{old_index+1:03d}'
+        history.mkdir(parents=True, exist_ok=False)
+        for name in ('generation_canvas.png','generation_mask.png','generation_zones.png','zones.json','prompt.txt'):
+            shutil.copy2(folder / 'input' / name, history / name)
+        shutil.copy2(image, history / 'generated.png')
+        save_json(history / 'alignment.json',report)
+        write_handoff(stage,meta,state)
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        backup = folder / 'backups' / ('pass_' + stamp)
+        backup.mkdir(parents=True, exist_ok=False)
+        for name in ('input','grid_job.json','generated.png','draft','chatgpt_bundle.zip'):
+            src = folder / name
+            if src.exists():
+                dest = backup / name
+                src.rename(dest)
+                moved.append((src,dest))
+        for name in ('input','grid_job.json'):
+            (stage / name).rename(folder / name)
+            installed.append(name)
+        return {'job':job,'accepted_pass':old_index+1,'next_pass':state['current']+1,
+                'pass_count':len(state['passes']),'backup':str(backup),
+                'canvas':str(folder/'input/generation_canvas.png'),
+                'mask':str(folder/'input/generation_mask.png'),
+                'prompt':str(folder/'input/prompt.txt'),
+                'next_step':'Send these three NEW files to ChatGPT; save its full PNG as generated.png. Published terrain is unchanged.'}
+    except Exception:
+        for name in installed:
+            candidate=folder/name
+            if candidate.is_dir():shutil.rmtree(candidate)
+            elif candidate.exists():candidate.unlink()
+        for src,dest in reversed(moved):
+            if dest.exists():dest.rename(src)
+        raise
+    finally:
+        shutil.rmtree(stage,ignore_errors=True)
+
+
 def pack_chatgpt(jobs: Path, job: str) -> Path:
     """Make a reusable ChatGPT handoff ZIP for an already prepared job.
 
@@ -469,6 +559,10 @@ def build_parser():
     rebuild = sub.add_parser('rebuild-job', help='Refresh canvas/mask/prompt using all overlapping neighbors')
     rebuild.add_argument('--job', required=True)
     rebuild.add_argument('--context', type=int, default=None)
+    advance = sub.add_parser('advance-job', help='Accept a native local pass and prepare the next canvas/mask/prompt')
+    advance.add_argument('--job', required=True)
+    advance.add_argument('--generated')
+    advance.add_argument('--strict', action='store_true')
     pack = sub.add_parser('pack', help='Create/re-create a ChatGPT ZIP for an existing pending job')
     pack.add_argument('--job', required=True)
     finalize = sub.add_parser('finalize', help='Validate and publish a ChatGPT-generated PNG')
@@ -505,6 +599,8 @@ def main(argv=None):
                       'viewer': str(jobs / '_export' / 'index.html')}
         elif args.command == 'rebuild-job':
             result = rebuild_job(jobs, args.job, context=args.context)
+        elif args.command == 'advance-job':
+            result = advance_job(jobs, args.job, generated=args.generated, strict=args.strict)
         elif args.command == 'pack':
             bundle = pack_chatgpt(jobs, args.job)
             result = {'job': args.job, 'chatgpt_bundle': str(bundle),
@@ -526,6 +622,7 @@ def main(argv=None):
                                        args.context, args.overlap, args.dry_run)
             if not args.dry_run:
                 result['next_step'] = (
+                    'Native local pass: if finalize reports an incomplete tile, run advance-job and generate the next handoff. '
                     'Send input/generation_canvas.png, input/generation_mask.png '
                     'and input/prompt.txt to ChatGPT; save its PNG as generated.png '
                     'and run finalize.'
