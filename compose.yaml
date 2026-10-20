@@ -3,7 +3,10 @@ services:
     build:
       context: .
     working_dir: /app
+    # Match the host user for files created under the bind-mounted jobs/ directory.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     volumes:
       - ./jobs:/app/jobs
     environment:
       - PYTHONDONTWRITEBYTECODE=1
+      - HOME=/tmp
