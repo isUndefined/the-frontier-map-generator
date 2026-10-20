@@ -22,16 +22,18 @@ class FrontierCliTests(unittest.TestCase):
         Image.fromarray(self.world_patch(0, 0)).save(self.jobs / 'center' / 'region.png')
         (self.jobs / 'layout.json').write_text(json.dumps({'version': 1, 'width': self.w, 'height': self.h, 'overlap': self.ov}))
 
-    def world_patch(self, left, top):
-        xx, yy = np.meshgrid(np.arange(self.w) + left, np.arange(self.h) + top)
+    def world_patch(self, left, top, width=None, height=None):
+        xx, yy = np.meshgrid(np.arange(width or self.w) + left, np.arange(height or self.h) + top)
         return np.stack([(xx + 3 * yy) % 256, (2 * xx + yy) % 256,
                          (xx + yy) % 256], axis=2).astype(np.uint8)
 
     def fake_output(self, plan):
         x, y = plan['target']['x'], plan['target']['y']
         path = self.jobs / plan['job'] / 'generated.png'
-        Image.fromarray(self.world_patch(x * (self.w - self.ov),
-                                         y * (self.h - self.ov))).save(path)
+        meta = load_json(path.parent / 'grid_job.json')
+        ox, oy = meta['generation_world_origin']
+        ew, eh = meta['expected_generation_size']
+        Image.fromarray(self.world_patch(ox, oy, ew, eh)).save(path)
         return path
 
     def test_dry_run_does_not_write_files(self):
@@ -104,7 +106,7 @@ class FrontierCliTests(unittest.TestCase):
             self.assertIn('input/context_board.png', names)
             self.assertIn('job_info.json', names)
             guide = z.read('CHATGPT_INSTRUCTIONS.md').decode()
-            self.assertIn('54 x 42', guide)
+            self.assertIn('438 x 426', guide)
             self.assertIn('Do not resize', guide)
             self.assertNotIn(str(self.jobs), z.read('job_info.json').decode())
         self.assertEqual(cli.pack_chatgpt(self.jobs, plan['job']), bundle)

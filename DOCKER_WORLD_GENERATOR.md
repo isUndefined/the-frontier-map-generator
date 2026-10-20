@@ -1,6 +1,6 @@
 # The Frontier: World Atlas (ChatGPT handoff + visual QA)
 
-No paid OpenAI API calls. The generator prepares source art and ZIP for manual ChatGPT use.
+No paid OpenAI API calls. The generator prepares canvas, mask and prompt for manual ChatGPT use. ZIP is optional.
 
 ## Open your whole world in the browser
 
@@ -43,7 +43,8 @@ docker compose run --rm generator expand --direction west --provider chatgpt
 docker compose run --rm generator pack --job tile_x-2_y+0
 ```
 
-Upload the resulting `jobs/<job>/chatgpt_bundle.zip` to ChatGPT, save the PNG
+Upload `input/generation_canvas.png`, `input/generation_mask.png` and
+`input/prompt.txt` to ChatGPT (or use the optional ZIP), save the full PNG
 at `jobs/<job>/generated.png` with the exact canvas dimensions, then:
 
 ```sh
@@ -111,8 +112,8 @@ Send **three separate files** to ChatGPT (no ZIP needed):
 
 `neighbor_debug_preview.png` shows where neighboring terrain was locked.
 The lock uses the same world-coordinate geometry and dependency-first paint
-order as the viewer, including all diagonal intersections. The generated image
-must be exactly 1672×941 px. Save it at `jobs/tile_x-2_y+0/generated.png`.
+order as the viewer, including all diagonal intersections. For new prepare v2 jobs the generated image
+must be the full 2056×1325 px canvas; the published tile remains 1672×941 px. Save it at `jobs/tile_x-2_y+0/generated.png`.
 
 ```sh
 docker compose run --rm generator finalize --job tile_x-2_y+0 --draft
@@ -124,38 +125,69 @@ from the locked visible-world composite. Newly expanded jobs produce the same
 three files automatically, without an auto-generated ZIP. The optional old
 `pack` command remains for compatibility.
 
-## Vertical seam fix: controlled editable handoff (v2)
+## Prepare v2: world context without moving geography
 
-A completely fixed 256 px border produces a vertical cliff if the generated
-core does not match it exactly. Freshly prepared jobs now allow generation
-to repaint **part** of that overlap, keeping the far shared edge, diagonal
-corners and all other black-mask pixels pixel-perfect.
+New `expand` and `rebuild-job` inputs use `chatgpt_world_canvas_v3` with
+`prepare_version: 2`. Existing prepared jobs keep their workflow until rebuilt.
+The published layout remains 1672×941 with overlap 256. The generation canvas
+adds a native 192px halo on all four sides: **2056×1325**. There is no scaling.
+All surrounding source crops use actual world-space intersections in exactly
+the atlas dependency paint order. The old target is excluded from context.
 
-The stitcher chooses a monotone content-aware **hard seam** inside the
-editable strip; no wide transparent blend or resized world image.
-This gives the model room to continue landforms across the former fixed line.
-This does not magically fix incorrectly painted terrain: inspect the draft.
+For target (-2,0), world origin is (-2832,0); canvas origin is (-3024,-192).
+The exact output tile crop is **[192,192,1864,1133)** (XYXY, half-open).
+The east neighbor `west_01` contributes source [0,0,448,941), of which only
+[0,0,256,941) overlaps the tile. The remaining 192px stays OUTSIDE the target.
+`north_02` contributes [0,493,448,941), with a real shared 256×256 corner
+[0,685,256,941). `south_01` contributes [0,0,448,448), with shared corner
+[0,0,256,256). Later sources own intersections, as in the world viewer.
 
-To apply to an already-published tile, **rebuild-job again** after updating
-the repository; existing older jobs retain their previous masks:
+All existing world pixels are locked. The 192px transition is in new editable
+territory adjacent to known world, including diagonal corner boundaries;
+other new territory is free. Unknown padding outside the tile is also locked.
+No overlap geography is repeated or moved to make the transition.
 
-\`\`\`sh
+In `input/`:
+
+- `generation_canvas.png`, `generation_mask.png`, `prompt.txt`: the only uploads.
+- `zones.json`: world/canvas origins, explicit crop, all source crops and paint order.
+- `generation_zones.png`: exact pixel partition (0 padding, 1 lock, 2 transition, 3 free).
+- `prepare_debug_overlay.png`: red lock, yellow transition, green free, gray padding;
+  white rectangle is the published tile crop. Do not upload this debug image.
+- `neighbor_map.json`: all actual coordinate neighbors.
+- `neighbor_lock.png`, `neighbor_mask.png`: immutable tile-sized world snapshot,
+  retained for stitch/finalize and exact overlap restoration.
+
+ChatGPT must return the FULL canvas at the dimensions in the prompt. If it
+returns a different size, regenerate: both finalize and direct stitch reject
+it rather than resize or guess the crop. Prepare v2 never automatically warps
+world geometry. Anchor QA ignores unknown black padding, checks real context
+and shared tile pixels, and rejects changed anchors by default. No artistic
+continuity is guaranteed by geometry alone; inspect the strict draft.
+Seam QA checks every cardinal neighbor. The old adaptive overlap handoff and
+its tone ramp remain available for already prepared legacy jobs; they do not
+repaint prepare v2's locked overlaps.
+
+Update and safely rebuild an existing published job:
+
+```sh
+git switch feature/docker-world-generator
+git pull --ff-only origin feature/docker-world-generator
 docker compose build generator
 docker compose run --rm generator rebuild-job --job tile_x-2_y+0
-\`\`\`
+```
 
-Send only \`generation_canvas.png\`, \`generation_mask.png\`,
-and \`prompt.txt\` to ChatGPT. The white corridor inside the old shared
-terrain is intentional and must be redrawn in continuity with the generated
-core. Save the new output as \`generated.png\`, then:
+Rebuild stages the new inputs before replacing old inputs and archives stale
+generated art, draft reports and optional ZIP. Failure during installation
+restores the old inputs. Published tile/region metadata stays unchanged.
+Send the three new inputs to ChatGPT; save the full output as
+`jobs/tile_x-2_y+0/generated.png`, then:
 
-\`\`\`sh
-docker compose run --rm generator finalize --job tile_x-2_y+0 --draft
-\`\`\`
-
-Inspect \`jobs/tile_x-2_y+0/draft/primary_pair_preview.png\`.
-If the image remains structurally discontinuous, regenerate instead of
-publishing. After an acceptable draft, run \`finalize --replace\`.
+```sh
+docker compose run --rm generator finalize --job tile_x-2_y+0 --draft --strict
+# After inspecting the draft and its QA report:
+docker compose run --rm generator finalize --job tile_x-2_y+0 --replace --strict
+```
 
 ## Whole-world draft QA
 

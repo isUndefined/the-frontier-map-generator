@@ -7,7 +7,11 @@ import unittest
 import numpy as np
 from PIL import Image
 
-from prepare_region_grid import prepare
+from prepare_region_grid import prepare as _prepare
+from functools import partial
+
+# Historical workflow regression tests; native v2 world geometry is covered in test_prepare_v2.
+prepare = partial(_prepare, prepare_version=1)
 from stitch_region_grid import stitch
 from build_grid_from_jobs import build
 from tile_grid import load_json, save_json
@@ -205,7 +209,10 @@ class TilePipelineTests(unittest.TestCase):
         job = self.jobs / 'west'
         run('prepare_region_grid.py', '--jobs', self.jobs, '--job', job,
             '--x', '-1', '--y', '0', '--primary', 'east', '--overlap', '8', '--context', '12')
-        Image.fromarray(self.patch(-40, 0)).save(job / 'generated.png')
+        meta = load_json(job / 'grid_job.json')
+        ox, oy = meta['generation_world_origin']
+        ew, eh = meta['expected_generation_size']
+        Image.fromarray(self.patch(ox, oy, ew, eh)).save(job / 'generated.png')
         run('stitch_region_grid.py', '--job', job, '--generated', job / 'generated.png')
         run('build_grid_from_jobs.py', '--jobs', self.jobs)
         manifest = load_json(self.jobs / '_grid' / 'grid.json')

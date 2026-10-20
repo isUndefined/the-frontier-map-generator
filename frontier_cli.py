@@ -122,7 +122,8 @@ def prepare_expansion(jobs, direction, anchor=None, name=None, context=700,
             'mask': str(path / 'input' / 'generation_mask.png'),
             'prompt': str(path / 'input' / 'prompt.txt'),
             'context': str(path / 'input' / 'context_board.png'),
-            'debug': str(path / 'input' / 'neighbor_debug_preview.png'),
+            'debug': str(path / 'input' / 'prepare_debug_overlay.png'),
+            'zones': str(path / 'input' / 'zones.json'),
         }
         data['generated'] = str(path / 'generated.png')
     return data
@@ -156,13 +157,14 @@ def rebuild_job(jobs: Path, job: str, context=None):
 
     stage = Path(tempfile.mkdtemp(prefix='rebuild_stage_', dir=jobs))
     moved = []
+    installed = []
     try:
         prepare(jobs, stage, x, y, side, region_id=published['id'],
                 context=ctx, allow_occupied_id=published['id'])
         stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         backup = folder / 'backups' / ('input_' + stamp)
         backup.mkdir(parents=True, exist_ok=False)
-        for name in ('input', 'grid_job.json', 'generated.png', 'draft', 'quality_report.json'):
+        for name in ('input', 'grid_job.json', 'generated.png', 'draft', 'quality_report.json', 'chatgpt_bundle.zip'):
             src = folder / name
             if src.exists():
                 dest = backup / name
@@ -170,18 +172,19 @@ def rebuild_job(jobs: Path, job: str, context=None):
                 moved.append((src, dest))
         for name in ('input', 'grid_job.json'):
             (stage / name).rename(folder / name)
+            installed.append(name)
         return {'job': job, 'target': {'x': x, 'y': y},
                 'backup': str(backup),
                 'canvas': str(folder / 'input/generation_canvas.png'),
                 'mask': str(folder / 'input/generation_mask.png'),
                 'prompt': str(folder / 'input/prompt.txt'),
-                'debug': str(folder / 'input/neighbor_debug_preview.png'),
+                'debug': str(folder / 'input/prepare_debug_overlay.png'),
+                'zones': str(folder / 'input/zones.json'),
                 'published_unchanged': str(folder / 'tile.png')}
     except Exception:
-        old_names = {src.name for src, _ in moved}
-        for name in ('input', 'grid_job.json'):
+        for name in installed:
             candidate = folder / name
-            if name in old_names and candidate.exists():
+            if candidate.exists():
                 if candidate.is_dir():
                     shutil.rmtree(candidate)
                 else:

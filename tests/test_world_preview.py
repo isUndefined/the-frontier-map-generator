@@ -27,6 +27,7 @@ class WorldPreviewTests(unittest.TestCase):
         self.target = self.add('tile_x-2_y+0', -2, 0, (15, 15, 15),
                                ['west_01', 'north_02', 'south_01'])
         self.meta = {
+            'primary_side': 'east',
             'target': {'x': -2, 'y': 0},
             'region_id': 'tile_x-2_y+0',
             'neighbors': {'east': {'id': 'west_01'}},

@@ -2,7 +2,8 @@ import unittest
 
 import numpy as np
 
-from seam_transition import editable_overlap_mask, merge_editable_overlap, _orient
+from seam_transition import editable_overlap_mask, merge_editable_overlap, _orient, _unorient
+from seam_refinement import tone_match_generated
 
 
 class OverlapSeamTests(unittest.TestCase):
@@ -34,8 +35,14 @@ class OverlapSeamTests(unittest.TestCase):
                 self.assertEqual(report['method'], 'terrain_aware_hard_cut')
                 self.assertEqual(report['seam_x_min'], min(np.where(
                     _orient((lock_mask == 0) & (generation_mask == 255), side))[1]))
-                self.assertTrue(np.array_equal(result[lock_mask == 255],
-                                               generated[lock_mask == 255]))
+                # The existing workflow includes a documented 96px generated-only
+                # tone ramp. Compare against that ramp, not the pre-ramp image.
+                ys,xs=np.nonzero(_orient((lock_mask==0)&(generation_mask==255),side))
+                toned,_=tone_match_generated(_orient(generated,side).copy(),
+                    _orient(locked,side),int(xs.min()),int(xs.max())+1,
+                    int(ys.min()),int(ys.max())+1,radius=96)
+                expected=_unorient(toned,side)
+                np.testing.assert_array_equal(result[lock_mask==255],expected[lock_mask==255])
 
     def test_path_can_move_into_overlap_instead_of_fixed_vertical_seam(self):
         h, w, ov = 130, 160, 32
@@ -48,7 +55,11 @@ class OverlapSeamTests(unittest.TestCase):
         result, report = merge_editable_overlap(generated, locked, mask, editable, 'east')
         self.assertGreater(report['seam_x_max'], w-ov)
         np.testing.assert_array_equal(result[:, -8:], locked[:, -8:])
-        self.assertTrue(np.array_equal(result[:, :w-ov], generated[:, :w-ov]))
+        ys,xs=np.nonzero((mask==0)&(editable==255))
+        toned,_=tone_match_generated(generated.copy(),locked,int(xs.min()),int(xs.max())+1,
+                                    int(ys.min()),int(ys.max())+1,radius=96)
+        np.testing.assert_array_equal(result[:, :w-ov],toned[:, :w-ov])
+        np.testing.assert_array_equal(result[:, :w-ov-96],generated[:, :w-ov-96])
 
     def test_no_editable_corridor_preserves_original_lock(self):
         mask = np.full((42, 54), 255, np.uint8)

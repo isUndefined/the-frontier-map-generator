@@ -608,10 +608,22 @@ def prepare_alignment(job, generated, expected, actual, meta, draft=False):
     with Image.open(job / 'input/generation_mask.png') as im:
         fixed_image = Image.fromarray(np.where(np.array(im.convert('L')) == 0, 255, 0).astype(np.uint8))
     fixed = np.array(fixed_image.filter(ImageFilter.MinFilter(5))) > 0
+    if meta.get('prepare_version') == 2:
+        with Image.open(job / 'input/generation_zones.png') as im:
+            fixed = np.asarray(im) == 1
+        if fixed.shape != generated.shape[:2]:
+            raise ValueError('World zone map dimensions differ from canvas')
     if not fixed.any():
         raise ValueError('No fixed anchor pixels in generation mask')
 
     error = float(np.abs(generated.astype(np.float32) - resized_reference)[fixed].mean())
+    if meta.get('prepare_version') == 2:
+        a, b, c, d = meta['generation_tile_crop']
+        shared = fixed[b:d, a:c]
+        if shared.any():
+            shared_error = float(np.abs(generated[b:d,a:c].astype(np.float32) -
+                                       resized_reference[b:d,a:c])[shared].mean())
+            error = max(error, shared_error)
     if error <= 12:
         return generated, {
             'method': 'identity',
@@ -619,6 +631,14 @@ def prepare_alignment(job, generated, expected, actual, meta, draft=False):
             'anchor_mae_after': error,
             'status': 'accepted',
         }
+
+    if meta.get('prepare_version') == 2:
+        # Never infer a transform for an explicitly positioned world canvas.
+        if not draft:
+            raise ValueError('Locked world context changed; regenerate before stitching')
+        return generated, {'method': 'world_canvas_identity', 'status': 'rejected',
+                           'anchor_mae_before': error, 'anchor_mae_after': error,
+                           'reason': 'Locked world context changed; regenerate without shifting geography'}
 
     try:
         aligned, report = align_terrain(
@@ -697,6 +717,8 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
     expected = tuple(meta['expected_generation_size'])
     with Image.open(generated) as im:
         actual = im.size
+        if meta.get('prepare_version') == 2 and actual != expected:
+            raise ValueError(f'Generated size {actual}, expected {expected}; No resize or upscaling permitted')
         sx, sy = actual[0] / expected[0], actual[1] / expected[1]
         if abs(sx - sy) / max(sx, sy) > 0.02:
             raise ValueError(f'Generated aspect ratio differs: expected {expected}, got {actual}')
@@ -717,7 +739,12 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
     #
     # Legacy/enlarged-canvas jobs still use context as a physical canvas offset.
     workflow = meta.get('workflow')
-    if workflow in ('chatgpt_tile_canvas_v1', 'chatgpt_tile_canvas_v2'):
+    if meta.get('prepare_version') == 2:
+        a,b,c,d = meta['generation_tile_crop']
+        if not (0 <= a < c <= gen.shape[1] and 0 <= b < d <= gen.shape[0] and (c-a,d-b) == (w,h)):
+            raise ValueError('Invalid world-space tile crop')
+        region = gen[b:d, a:c].copy()
+    elif workflow in ('chatgpt_tile_canvas_v1', 'chatgpt_tile_canvas_v2'):
         if gen.shape[1] != w or gen.shape[0] != h:
             raise ValueError(
                 f'ChatGPT tile workflow expected normalized tile {w}x{h}, '
@@ -776,7 +803,12 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
             raise ValueError('Neighbor lock dimensions differ from tile layout')
         with Image.open(job / 'input/generation_mask.png') as im:
             generated_mask = np.asarray(im.convert('L'))
-        if meta.get('neighbor_lock_version') == 2:
+        if meta.get('prepare_version') == 2:
+            a,b,c,d = meta['generation_tile_crop']
+            if not np.array_equal(lock_mask, generated_mask[b:d,a:c]):
+                raise ValueError('World canvas crop mask differs from immutable neighbor mask')
+            region[lock_mask == 0] = lock[lock_mask == 0]
+        elif meta.get('neighbor_lock_version') == 2:
             region, seam_transition_report = merge_editable_overlap(
                 region, lock, lock_mask, generated_mask, side
             )
@@ -792,6 +824,11 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
     seam_quality = (analyze_seam(region, side, ov, seam_transition_report)
                     if meta.get('neighbor_lock_version') == 2 else
                     {'status': 'not_applicable', 'reason': 'Legacy input'})
+    if meta.get('prepare_version') == 2:
+        reports = {s: analyze_seam(region, s, ov) for s in sides}
+        seam_quality = {**reports[side], 'neighbors': reports}
+        if any(r['status'] == 'rejected' for r in reports.values()):
+            seam_quality['status'] = 'rejected'
     out = job / 'draft' if draft else job
     out.mkdir(exist_ok=True)
     output = out / 'tile.png'
@@ -800,6 +837,8 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
         'format': 'local_tile_v1', 'generated_size': list(actual),
         'normalized_generation_size': list(expected), 'tile_size': [w, h],
         'workflow': meta.get('workflow'),
+        'generation_tile_crop': meta.get('generation_tile_crop'),
+        'generation_world_origin': meta.get('generation_world_origin'),
         'feather': feather, 'merged_sides': sides,
         'side_merge_report': side_merge_report,
         'anchor_mae': anchor_error,
@@ -808,7 +847,8 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
         'primary_overlap_restored': primary_overlap_restored,
         'primary_overlap_transition_px': overlap_transition,
         'exact_primary_boundary_px': exact_boundary_band,
-        'primary_overlap_method': 'terrain_aware_hard_cut' if seam_transition_report else 'content_aware_hard_seam',
+        'primary_overlap_method': ('exact_world_lock' if meta.get('prepare_version') == 2 else
+                                   'terrain_aware_hard_cut' if seam_transition_report else 'content_aware_hard_seam'),
         'seam_transition': seam_transition_report,
         'seam_quality': seam_quality,
         'primary_overlap_broad_blend_disabled': True,
