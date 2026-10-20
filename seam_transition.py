@@ -3,6 +3,7 @@ at a terrain-aware path. No world-side images are modified and no RGB crossfade
 can create ghost trees or buildings.
 """
 import numpy as np
+from seam_refinement import tone_match_generated
 
 
 def _orient(array, side):
@@ -108,9 +109,8 @@ def merge_editable_overlap(generated, locked, lock_mask, generated_mask, side):
     if not np.any(editable):
         return candidate, {'method': 'exact_lock', 'seam_pixels': 0}
 
-    g = _orient(generated, side)
+    g = np.array(_orient(generated, side), copy=True)
     l = _orient(locked, side)
-    out = _orient(candidate, side)
     active = _orient(editable, side)
     ys, xs = np.nonzero(active)
     y0, y1 = int(ys.min()), int(ys.max()) + 1
@@ -121,6 +121,12 @@ def merge_editable_overlap(generated, locked, lock_mask, generated_mask, side):
     if width < 2 or height < 3:
         return candidate, {'method': 'exact_lock', 'seam_pixels': 0}
 
+    # 96px generated-only tonal ramp; never blend world geometry or recolor
+    # existing neighbors. Adaptive cut is selected AFTER the tone correction.
+    g, tonal = tone_match_generated(g, l, x0, x1, y0, y1, radius=96)
+    out = np.array(g, copy=True)
+    known = _orient(lock_mask == 0, side)
+    out[known] = l[known]
     # A hard seam follows low color/structure disagreement; the endpoints
     # stay anchored where the existing core met the original locked strip.
     a = g[y0:y1, x0:x1].astype(np.float32)
@@ -133,8 +139,14 @@ def merge_editable_overlap(generated, locked, lock_mask, generated_mask, side):
     for row, boundary in enumerate(seam):
         if boundary:
             out[y0 + row, x0:x0 + int(boundary)] = g[y0 + row, x0:x0 + int(boundary)]
+    # Preserve every black pixel exactly, including diagonal corners.
+    preserve = _orient(generated_mask == 0, side)
+    out[preserve] = l[preserve]
     return np.ascontiguousarray(_unorient(out, side)), {
         'method': 'terrain_aware_hard_cut',
+        'tonal_match': tonal,
+        'seam_path_px': [int(x0 + v) for v in seam],
+        'seam_y_start': int(y0),
         'seam_pixels': int(height),
         'seam_x_min': int(x0 + seam.min()),
         'seam_x_max': int(x0 + seam.max()),

@@ -168,3 +168,8 @@ Check **`jobs/tile_x-2_y+0/draft/world_preview.png`**, not only the old
 `draft/world_preview.json` includes the covered world coordinates, the
 candidate pixel rectangle and tile render order. A dependency cycle fails
 instead of rendering a misleading preview.
+
+## Seam QA
+
+Run `docker compose run --rm generator finalize --job tile_x-2_y+0 --draft --strict`.
+Inspect `draft/world_preview.png`, `draft/seam_east_preview.png`, `draft/seam_ne_preview.png`, `draft/seam_se_preview.png`, and `draft/quality_report.json`. Strict mode rejects persistent significant gradient discontinuities. Pixels of existing neighbors remain unchanged. Once draft is acceptable, use `finalize --job tile_x-2_y+0 --replace --strict`.

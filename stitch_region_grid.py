@@ -8,6 +8,7 @@ from tile_grid import load_json, save_json, open_tile, discover
 from terrain_alignment import align_terrain, AlignmentError
 from seam_transition import merge_editable_overlap
 from draft_world_preview import create_world_preview, draft_dependencies
+from seam_diagnostics import analyze_seam, save_seam_previews
 
 
 def resolve_job_and_generated(job, generated=None, jobs='jobs'):
@@ -788,6 +789,9 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
     else:
         corner_reconciliation = reconcile_diagonal_corners(region, job, meta, layout)
 
+    seam_quality = (analyze_seam(region, side, ov, seam_transition_report)
+                    if meta.get('neighbor_lock_version') == 2 else
+                    {'status': 'not_applicable', 'reason': 'Legacy input'})
     out = job / 'draft' if draft else job
     out.mkdir(exist_ok=True)
     output = out / 'tile.png'
@@ -806,6 +810,7 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
         'exact_primary_boundary_px': exact_boundary_band,
         'primary_overlap_method': 'terrain_aware_hard_cut' if seam_transition_report else 'content_aware_hard_seam',
         'seam_transition': seam_transition_report,
+        'seam_quality': seam_quality,
         'primary_overlap_broad_blend_disabled': True,
         'corner_reconciliation': corner_reconciliation,
         'alignment_method': alignment.get('method'),
@@ -833,6 +838,7 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
         # world_preview includes every visible neighbor, including diagonal
         # intersections, in the exact prospective export paint order.
         full_preview = create_world_preview(job, output, meta, layout)
+        save_seam_previews(full_preview, out / 'world_preview.json', out)
         print(full_preview)
         return
     # Dependencies must include every tile whose pixels were used. In

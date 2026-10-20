@@ -92,6 +92,8 @@ def create_world_preview(job, draft_image, meta, layout=None):
         'target_rect': [tx * step_x - x0, ty * step_y - y0,
                         tx * step_x - x0 + w, ty * step_y - y0 + h],
         'render_order': 'dependencies_first',
+        'overlap_px': ov,
+        'primary_side': meta['primary_side'],
         'dependencies': deps,
         'painted': painted,
         'pixels': [image.width, image.height],

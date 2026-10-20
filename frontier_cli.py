@@ -260,7 +260,8 @@ def pack_chatgpt(jobs: Path, job: str) -> Path:
 
 
 def publish(jobs: Path, job: str, generated=None, feather=4, draft=False,
-            export=True, export_format='webp', replace=False, allow_weak_alignment=False):
+            export=True, export_format='webp', replace=False, allow_weak_alignment=False,
+            strict=False):
     """Validate a draft before publishing; preserve old assets on replacement.
 
     The quality gate runs on the *stitched* draft and never changes world
@@ -296,13 +297,19 @@ def publish(jobs: Path, job: str, generated=None, feather=4, draft=False,
         stitch_metadata=load_json(path / 'draft' / 'stitch_meta.json'),
         allow_weak_alignment=allow_weak_alignment,
     )
+    seam = load_json(path / 'draft' / 'stitch_meta.json').get('seam_quality', {})
+    report['seam_quality'] = seam
+    if strict and seam.get('status') == 'rejected':
+        report['issues'].append('east_seam_mismatch' if seam.get('side') == 'east' else 'seam_mismatch')
+        report['status'] = 'rejected'
     save_json(path / 'draft' / 'quality_report.json', report)
     if draft:
         return {'job': job, 'draft': str(draft_path),
                 'world_preview': str(path / 'draft' / 'world_preview.png'),
                 'world_preview_report': str(path / 'draft' / 'world_preview.json'),
                 'quality_report': str(path / 'draft' / 'quality_report.json'),
-                'quality': report['status'], 'issues': report['issues']}
+                'quality': report['status'], 'issues': report['issues'],
+                'seam_previews': str(path / 'draft' / 'seam_east_preview.png')}
     if report['status'] != 'passed':
         raise ValueError(
             f'Quality gate rejected {job}: {", ".join(report["issues"])}. '
@@ -338,6 +345,11 @@ def publish(jobs: Path, job: str, generated=None, feather=4, draft=False,
             stitch_metadata=load_json(path / 'stitch_meta.json'),
             allow_weak_alignment=allow_weak_alignment,
         )
+        final_seam = load_json(path / 'stitch_meta.json').get('seam_quality', {})
+        final_report['seam_quality'] = final_seam
+        if strict and final_seam.get('status') == 'rejected':
+            final_report['issues'].append('east_seam_mismatch' if final_seam.get('side') == 'east' else 'seam_mismatch')
+            final_report['status'] = 'rejected'
         save_json(path / 'quality_report.json', final_report)
         if final_report['status'] != 'passed':
             raise ValueError(f'Final tile failed QA: {final_report["issues"]}')
@@ -461,6 +473,8 @@ def build_parser():
     finalize.add_argument('--generated', help='PNG path visible inside Docker (e.g. /app/jobs/<job>/generated.png)')
     finalize.add_argument('--feather', type=int, default=4)
     finalize.add_argument('--draft', action='store_true')
+    finalize.add_argument('--strict', action='store_true',
+                          help='Reject persistent strong seam discontinuity before publishing')
     finalize.add_argument('--no-export', action='store_true')
     finalize.add_argument('--replace', action='store_true',
                           help='Replace a published tile after QA, backing up old art and metadata')
@@ -502,7 +516,8 @@ def main(argv=None):
         elif args.command == 'finalize':
             result = publish(jobs, args.job, generated=args.generated, feather=args.feather,
                              draft=args.draft, export=not args.no_export,
-                             replace=args.replace, allow_weak_alignment=args.allow_weak_alignment)
+                             replace=args.replace, allow_weak_alignment=args.allow_weak_alignment,
+                             strict=args.strict)
         else:
             result = prepare_expansion(jobs, args.direction, args.anchor, args.job,
                                        args.context, args.overlap, args.dry_run)
