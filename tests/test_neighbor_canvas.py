@@ -63,4 +63,4 @@ class NeighborCanvasTests(unittest.TestCase):
         self.assertEqual(mask[0,-1],0)
         self.assertTrue(Path(r['prompt']).exists())
         self.assertTrue(Path(r['debug']).exists())
-        self.assertEqual(json.loads((self.target/'grid_job.json').read_text())['neighbor_lock_version'],1)
+        self.assertEqual(json.loads((self.target/'grid_job.json').read_text())['neighbor_lock_version'],2)

@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image, ImageOps, ImageDraw
 from tile_grid import DIRS, geometry, discover, neighbors, open_tile, save_json
 from neighbor_canvas import compose_lock, save_debug_preview
+from seam_transition import editable_overlap_mask
 
 
 def resolve_job_path(jobs, job):
@@ -573,8 +574,11 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
     neighbors_dir.mkdir(parents=True)
     diagonals_dir.mkdir(parents=True)
 
+    # Keep exact immutable original overlap separate from the model's editable
+    # seam corridor. Diagonal corners and the far shared edge stay locked.
+    generation_mask, seam_config = editable_overlap_mask(mask, primary_side, ov)
     Image.fromarray(canvas).save(inp / 'generation_canvas.png')
-    Image.fromarray(mask).save(inp / 'generation_mask.png')
+    Image.fromarray(generation_mask).save(inp / 'generation_mask.png')
     Image.fromarray(canvas).save(inp / 'neighbor_lock.png')
     Image.fromarray(mask).save(inp / 'neighbor_mask.png')
     save_debug_preview(inp / 'neighbor_debug_preview.png', canvas, mask, ownership, intersections)
@@ -668,8 +672,11 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
         '',
         'Use the attached generation_canvas.png and generation_mask.png.',
         'BLACK mask pixels are already-visible terrain from the existing world:',
-        'preserve them EXACTLY. WHITE pixels are the ONLY terrain to create.',
-        'The preserved portions include all cardinal overlaps AND diagonal corners.',
+        'preserve them EXACTLY. WHITE pixels are the only areas you can repaint.',
+        'Some WHITE pixels are an editable transition corridor within the existing',
+        'right/primary neighbor overlap. Repaint this corridor to CONTINUE the',
+        'terrain from both sides; it is not a new or separate geographical area.',
+        'The far shared border and diagonal corners remain permanently fixed.',
         'Do not shift, scale, redraw, mirror, crop or reinterpret black-mask terrain.',
         'Do not paste any recognizable mountains, lakes, settlements or waterfalls',
         'from the locked portions into the new white area; grow NEW geography.',
@@ -720,7 +727,8 @@ def prepare(jobs, job, x, y, primary_side, region_id=None, overlap=None,
         'diagonal_anchor_version': 5,
         'diagonal_anchor_mode': 'visible_world_locked_corners',
         'terrain_continuity_version': 3,
-        'neighbor_lock_version': 1,
+        'neighbor_lock_version': 2,
+        'seam_transition': seam_config,
         'overlap_intersections': intersections,
         'corner_influence_zone_px': [180, 280],
         'landmark_plan': landmark_plan,

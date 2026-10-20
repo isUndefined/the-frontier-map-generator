@@ -123,3 +123,36 @@ The stitcher restores black-mask pixels **after** any alignment/side merging
 from the locked visible-world composite. Newly expanded jobs produce the same
 three files automatically, without an auto-generated ZIP. The optional old
 `pack` command remains for compatibility.
+
+## Vertical seam fix: controlled editable handoff (v2)
+
+A completely fixed 256 px border produces a vertical cliff if the generated
+core does not match it exactly. Freshly prepared jobs now allow generation
+to repaint **part** of that overlap, keeping the far shared edge, diagonal
+corners and all other black-mask pixels pixel-perfect.
+
+The stitcher chooses a monotone content-aware **hard seam** inside the
+editable strip; no wide transparent blend or resized world image.
+This gives the model room to continue landforms across the former fixed line.
+This does not magically fix incorrectly painted terrain: inspect the draft.
+
+To apply to an already-published tile, **rebuild-job again** after updating
+the repository; existing older jobs retain their previous masks:
+
+\`\`\`sh
+docker compose build generator
+docker compose run --rm generator rebuild-job --job tile_x-2_y+0
+\`\`\`
+
+Send only \`generation_canvas.png\`, \`generation_mask.png\`,
+and \`prompt.txt\` to ChatGPT. The white corridor inside the old shared
+terrain is intentional and must be redrawn in continuity with the generated
+core. Save the new output as \`generated.png\`, then:
+
+\`\`\`sh
+docker compose run --rm generator finalize --job tile_x-2_y+0 --draft
+\`\`\`
+
+Inspect \`jobs/tile_x-2_y+0/draft/primary_pair_preview.png\`.
+If the image remains structurally discontinuous, regenerate instead of
+publishing. After an acceptable draft, run \`finalize --replace\`.

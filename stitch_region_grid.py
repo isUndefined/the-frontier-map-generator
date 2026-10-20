@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 from tile_grid import load_json, save_json, open_tile, discover
 from terrain_alignment import align_terrain, AlignmentError
+from seam_transition import merge_editable_overlap
 
 
 def resolve_job_and_generated(job, generated=None, jobs='jobs'):
@@ -739,9 +740,14 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
     # overwrite a corner that an earlier side already established.
     sides = [side] + [s for s in ('north', 'east', 'south', 'west')
                       if s != side and s in meta['neighbor_files']]
-    side_merge_report = merge_sides_without_corner_overwrite(
-        region, sides, meta['neighbor_files'], job, layout, feather
-    )
+    if meta.get('neighbor_lock_version') == 2:
+        # Adaptive handoff needs the unaltered generated overlap; the legacy
+        # side merge would preemptively discard that material.
+        side_merge_report = []
+    else:
+        side_merge_report = merge_sides_without_corner_overwrite(
+            region, sides, meta['neighbor_files'], job, layout, feather
+        )
     # The primary overlap was already resolved above with a HARD content-aware
     # seam. Do not run soften_primary_overlap() here: broad RGB blending is what
     # created ghosted houses, duplicated trees and blurred terrain when the two
@@ -756,7 +762,8 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
     # Diagonal grid cells overlap physically by ov×ov pixels even though they
     # are not returned by tile_grid.neighbors(). Reconcile those corner squares
     # explicitly after all side operations so one side cannot overwrite another.
-    if meta.get('neighbor_lock_version') == 1:
+    seam_transition_report = None
+    if meta.get('neighbor_lock_version') in (1, 2):
         # Locks are an exact compositor snapshot; use them AFTER all legacy
         # merges so neither alignment nor diagonal hard-cuts can alter them.
         with Image.open(job / 'input/neighbor_lock.png') as im:
@@ -767,11 +774,15 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
             raise ValueError('Neighbor lock dimensions differ from tile layout')
         with Image.open(job / 'input/generation_mask.png') as im:
             generated_mask = np.asarray(im.convert('L'))
-        if not np.array_equal(lock_mask, generated_mask):
-            raise ValueError('Neighbor mask differs from generation mask')
-        region[lock_mask == 0] = lock[lock_mask == 0]
-        # Old hard-corner reconciliation is not needed: fixed diagonal pieces
-        # already come from the same visible-world composite as the side strips.
+        if meta.get('neighbor_lock_version') == 2:
+            region, seam_transition_report = merge_editable_overlap(
+                region, lock, lock_mask, generated_mask, side
+            )
+        else:
+            if not np.array_equal(lock_mask, generated_mask):
+                raise ValueError('Neighbor mask differs from generation mask')
+            region[lock_mask == 0] = lock[lock_mask == 0]
+        # Diagonal pieces are already from the same visible-world composite.
         corner_reconciliation = []
     else:
         corner_reconciliation = reconcile_diagonal_corners(region, job, meta, layout)
@@ -792,7 +803,8 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
         'primary_overlap_restored': primary_overlap_restored,
         'primary_overlap_transition_px': overlap_transition,
         'exact_primary_boundary_px': exact_boundary_band,
-        'primary_overlap_method': 'content_aware_hard_seam',
+        'primary_overlap_method': 'terrain_aware_hard_cut' if seam_transition_report else 'content_aware_hard_seam',
+        'seam_transition': seam_transition_report,
         'primary_overlap_broad_blend_disabled': True,
         'corner_reconciliation': corner_reconciliation,
         'alignment_method': alignment.get('method'),
