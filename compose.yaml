@@ -1,0 +1,9 @@
+services:
+  generator:
+    build:
+      context: .
+    working_dir: /app
+    volumes:
+      - ./jobs:/app/jobs
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1

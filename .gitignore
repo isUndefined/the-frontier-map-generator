@@ -1,0 +1,13 @@
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+tmp/
+jobs/_grid/
+jobs/*/draft/
+jobs/*/preview/
+jobs/*/stitched/
+jobs/*/.region_cache/
+.env
+.env.*
+.DS_Store
