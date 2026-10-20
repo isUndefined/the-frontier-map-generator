@@ -1,5 +1,25 @@
 # Docker — original map generator from main
 
+## Запуск от текущего пользователя
+
+Для всех команд Docker Compose используй `sh compose-user.sh` вместо `docker compose`. Обёртка автоматически передаёт UID/GID текущего пользователя, поэтому новые файлы в `jobs/` не принадлежат root.
+
+```sh
+sh compose-user.sh build generator
+sh compose-user.sh run --rm generator prepare_region_grid.py --jobs jobs --x -2 --y 1 --primary north --job south_00
+sh compose-user.sh run --rm generator stitch_region_grid.py --job south_00 --feather 4
+sh compose-user.sh run --rm generator build_grid_from_jobs.py --jobs jobs
+```
+
+Если старые папки уже принадлежат root, на Linux исправь их один раз:
+
+```sh
+sudo chown -R "$(id -u):$(id -g)" jobs
+```
+
+Не запускай обёртку через sudo. Без `compose-user.sh` Compose использует резервные UID/GID 1000, которые могут не совпадать с твоими.
+
+
 This branch keeps **all original Python map logic unchanged**. Docker only
 provides the Python environment and a writable mount of local `jobs/`.
 No API keys, image services, or feature-branch generation pipelines are used.
