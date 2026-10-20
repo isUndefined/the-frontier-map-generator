@@ -1,5 +1,8 @@
 # The Frontier: World Atlas (ChatGPT handoff + visual QA)
 
+Самостоятельный цикл, обновление промпта без сброса прогресса и повтор после отказа:
+[SELF_SERVICE_GENERATION.md](SELF_SERVICE_GENERATION.md).
+
 No paid OpenAI API calls. The generator prepares canvas, mask and prompt for manual ChatGPT use. ZIP is optional.
 
 ## Open your whole world in the browser

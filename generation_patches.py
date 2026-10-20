@@ -127,27 +127,8 @@ def write_handoff(job,meta,state):
     save_json(inp/'zones.json',zones)
     overlay=(canvas.astype(float)*.55+np.array([(35,35,35),(210,60,60),(230,190,45),(55,190,90)])[labels]*.45).astype('uint8')
     Image.fromarray(overlay).save(inp/'prepare_debug_overlay.png')
-    cw,ch=zones['canvas_size']
-    lines=[
-        'EDIT the FIRST attached image. The SECOND image is a mask reference, never output the mask.',
-        f'Output EXACTLY {cw}x{ch} PNG. Keep the identical canvas frame, native pixel scale and camera.',
-        f'Local outpaint pass {zones["pass"]}/{zones["pass_count"]} for The Frontier tile {meta["target"]}.',
-        'Fill ONLY WHITE mask pixels. Preserve all BLACK mask pixels, including plain black padding.',
-        f'The first {meta.get("transition",192)}px of white territory next to existing terrain is a transition zone; the rest is free new territory.',
-        'This is a small continuation of the same landscape, not a new independent scenic composition.',
-        'Start at the existing terrain edge. Continue the LOCAL slope, shore, valley, water and vegetation at every contact point.',
-        'Continue a lake as the SAME lake with a coherent shoreline; continue a valley at the SAME elevation.',
-        'Do not replace water or a valley with an abrupt wall of mountains, cliffs, forest or a straight ridge.',
-        'Never turn the rectangular edit boundary into a geological barrier or a visible separator line.',
-        'Do not repeat unique landmarks, lakes, castles or waterfalls from the reference into new territory.',
-        'Match the visible terrain density, lighting, perspective and high oblique aerial painterly style.',
-        'Keep the map continuous at both diagonal corner contacts.',
-        'No text, labels, border, interface or divider line. Return the FULL canvas, without cropping or resizing.',
-        f'Canvas world origin: {zones["canvas_world_origin"]}. All rectangles use XYXY half-open pixels.',
-        f'New target-territory rectangle: {zones["tile_edit_rect"]}; canvas relative to tile: {zones["tile_canvas_rect"]}.',
-        'Only canvas, mask and this prompt are needed. The pipeline restores exact existing world pixels.',
-    ]
-    (inp/'prompt.txt').write_text('\n'.join(lines)+'\n')
+    from handoff_prompt import render_prompt
+    (inp/'prompt.txt').write_text(render_prompt(meta,zones,mask,labels))
     meta.update(generation_tile_crop=None, expected_generation_size=zones['canvas_size'],generation_world_origin=zones['canvas_world_origin'],
                 generation_patch=zones,workflow='chatgpt_native_patches_v1')
     save_json(job/'grid_job.json',meta)

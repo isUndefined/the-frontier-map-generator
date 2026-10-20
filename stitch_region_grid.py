@@ -638,8 +638,11 @@ def prepare_alignment(job, generated, expected, actual, meta, draft=False):
         identity.update(anchor_mae_before=error, anchor_mae_after=error)
         if identity['status'] == 'accepted':
             return generated, identity
+        from generation_check import anchor_failure
+        diagnostics = anchor_failure(job, generated, original, fixed, identity)
         if not draft:
-            raise ValueError('Locked world context changed; regenerate before stitching: ' + identity['reason'])
+            raise ValueError('Locked world context changed; regenerate before stitching: ' + identity['reason'] +
+                             '. See ' + diagnostics['report'] + '; retry using ' + diagnostics['retry_prompt'])
         return generated, identity
 
     if meta.get('prepare_version') in (2, 3):

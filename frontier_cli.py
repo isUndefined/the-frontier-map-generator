@@ -201,7 +201,6 @@ def advance_job(jobs, job, generated=None, strict=False):
     """Accept one native outpaint pass and stage the next three-file handoff."""
     import numpy as np
     from generation_patches import apply_patch_result, write_handoff
-    from stitch_region_grid import prepare_alignment
     jobs = Path(jobs).resolve()
     folder = jobs / job
     if folder.parent != jobs or not (folder / 'grid_job.json').is_file():
@@ -210,30 +209,21 @@ def advance_job(jobs, job, generated=None, strict=False):
     if meta.get('prepare_version') != 3:
         raise ValueError('advance-job requires native patch preparation; rebuild existing jobs first')
     image = Path(generated).resolve() if generated else folder / 'generated.png'
+    from generation_check import check_job
+    validation = check_job(jobs,job,generated=image,strict=strict)
+    if validation['status'] != 'passed':
+        prefix = 'Locked world context changed; regenerate before stitching: ' if 'weak_alignment' in validation['issues'] else ''
+        raise ValueError(prefix + validation['message'] + '. See ' + validation['report'] +
+                         '; retry using ' + str(validation['retry_prompt']))
     with Image.open(image) as im:
-        actual = im.size
-        expected = tuple(meta['expected_generation_size'])
-        if actual != expected:
-            raise ValueError(f'Generated image is {actual}, expected {expected}. No resize or upscaling permitted')
         result = np.array(im.convert('RGB'))
-    # Direct registration is never applied. A changed/moved anchor is rejected.
-    _, report = prepare_alignment(folder, result, expected, actual, meta)
+    report = validation['alignment']
     target, remaining, state = apply_patch_result(folder, result)
     if not np.any(remaining):
         return {'job':job,'ready_for_finalize':True,
                 'next_step':'This is the last pass. Run finalize --draft --strict, inspect, then finalize --replace --strict for an existing publication.'}
-    from seam_diagnostics import analyze_seam
-    w,h=meta['target_region_size']
-    left,top,right,bottom=state['passes'][state['current']]['tile_edit_rect']
-    side=meta['primary_side']
-    band={'east':w-right,'west':left,'north':top,'south':h-bottom}[side]
-    seam=analyze_seam(target,side,band)
-    preview=folder/'draft'
-    preview.mkdir(exist_ok=True)
-    Image.fromarray(target).save(preview/'pass_preview.png')
-    save_json(preview/'pass_quality_report.json',{'alignment':report,'seam_quality':seam})
-    if strict and seam['status']=='rejected':
-        raise ValueError('Pass seam QA rejected; inspect draft/pass_preview.png and regenerate this pass')
+    save_json(folder/'draft/pass_quality_report.json',{
+        'alignment':report,'seam_quality':validation['seam_quality']})
     old_index = state['current']
     state['accepted_passes'].append(old_index + 1)
     state['current'] += 1
@@ -559,6 +549,12 @@ def build_parser():
     rebuild = sub.add_parser('rebuild-job', help='Refresh canvas/mask/prompt using all overlapping neighbors')
     rebuild.add_argument('--job', required=True)
     rebuild.add_argument('--context', type=int, default=None)
+    refresh = sub.add_parser('refresh-prompt', help='Update current prompt without rebuilding or losing accepted passes')
+    refresh.add_argument('--job', required=True)
+    check = sub.add_parser('check-job', help='Validate a generated native pass and write diagnostics/retry prompt')
+    check.add_argument('--job', required=True)
+    check.add_argument('--generated')
+    check.add_argument('--strict', action='store_true')
     advance = sub.add_parser('advance-job', help='Accept a native local pass and prepare the next canvas/mask/prompt')
     advance.add_argument('--job', required=True)
     advance.add_argument('--generated')
@@ -599,6 +595,15 @@ def main(argv=None):
                       'viewer': str(jobs / '_export' / 'index.html')}
         elif args.command == 'rebuild-job':
             result = rebuild_job(jobs, args.job, context=args.context)
+        elif args.command == 'refresh-prompt':
+            from handoff_prompt import refresh_prompt
+            folder = jobs / args.job
+            if folder.parent != jobs:
+                raise ValueError('Invalid job name')
+            result = refresh_prompt(folder)
+        elif args.command == 'check-job':
+            from generation_check import check_job
+            result = check_job(jobs,args.job,generated=args.generated,strict=args.strict)
         elif args.command == 'advance-job':
             result = advance_job(jobs, args.job, generated=args.generated, strict=args.strict)
         elif args.command == 'pack':
@@ -628,7 +633,7 @@ def main(argv=None):
                     'and run finalize.'
                 )
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0
+        return 1 if args.command == 'check-job' and result['status'] == 'rejected' else 0
     except (ValueError, FileNotFoundError, FileExistsError, RuntimeError, OSError) as exc:
         print(f'ERROR: {exc}', file=sys.stderr)
         return 1
