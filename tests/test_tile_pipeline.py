@@ -140,6 +140,8 @@ class TilePipelineTests(unittest.TestCase):
         self.assertEqual((job / 'tile.png').read_bytes(), before_tile)
         self.assertEqual((job / 'region.json').read_bytes(), before_meta)
         self.assertTrue((job / 'draft/primary_pair_preview.png').exists())
+        self.assertTrue((job / 'draft/world_preview.png').exists())
+        self.assertTrue((job / 'draft/world_preview.json').exists())
         self.assertTrue(load_json(job / 'draft/stitch_meta.json')['anchor_changed'])
         (job / 'tile.png').unlink()
         (job / 'region.json').unlink()

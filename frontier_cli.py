@@ -299,6 +299,8 @@ def publish(jobs: Path, job: str, generated=None, feather=4, draft=False,
     save_json(path / 'draft' / 'quality_report.json', report)
     if draft:
         return {'job': job, 'draft': str(draft_path),
+                'world_preview': str(path / 'draft' / 'world_preview.png'),
+                'world_preview_report': str(path / 'draft' / 'world_preview.json'),
                 'quality_report': str(path / 'draft' / 'quality_report.json'),
                 'quality': report['status'], 'issues': report['issues']}
     if report['status'] != 'passed':

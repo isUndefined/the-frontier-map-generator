@@ -7,6 +7,7 @@ from PIL import Image, ImageFilter
 from tile_grid import load_json, save_json, open_tile, discover
 from terrain_alignment import align_terrain, AlignmentError
 from seam_transition import merge_editable_overlap
+from draft_world_preview import create_world_preview, draft_dependencies
 
 
 def resolve_job_and_generated(job, generated=None, jobs='jobs'):
@@ -828,7 +829,11 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
         pair.paste(Image.fromarray(region), tile_pos)
         pair.thumbnail((1800, 1200), Image.Resampling.LANCZOS)
         pair.save(out / 'primary_pair_preview.png')
-        print(out / 'primary_pair_preview.png')
+        # primary_pair_preview is a legacy two-tile diagnostic. The new
+        # world_preview includes every visible neighbor, including diagonal
+        # intersections, in the exact prospective export paint order.
+        full_preview = create_world_preview(job, output, meta, layout)
+        print(full_preview)
         return
     # Dependencies must include every tile whose pixels were used. In
     # particular, diagonal reconciliation must become part of the dependency
@@ -848,6 +853,15 @@ def stitch(job, generated=None, feather=4, draft=False, jobs='jobs'):
         if dep not in seen_dependencies:
             dependencies.append(dep)
             seen_dependencies.add(dep)
+
+    if meta.get('neighbor_lock_version') in (1, 2):
+        # All tiles used by the visible-world lock (especially diagonals)
+        # must be painted BEFORE the generated tile in the atlas. Otherwise
+        # the export can overwrite the new tile's reconciled corners.
+        for dep in draft_dependencies(meta):
+            if dep not in seen_dependencies:
+                dependencies.append(dep)
+                seen_dependencies.add(dep)
 
     save_json(job / 'region.json', {
         'version': 1, 'format': 'local_tile_v1', 'id': meta['region_id'],

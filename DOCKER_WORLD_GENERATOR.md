@@ -156,3 +156,15 @@ docker compose run --rm generator finalize --job tile_x-2_y+0 --draft
 Inspect \`jobs/tile_x-2_y+0/draft/primary_pair_preview.png\`.
 If the image remains structurally discontinuous, regenerate instead of
 publishing. After an acceptable draft, run \`finalize --replace\`.
+
+## Whole-world draft QA
+
+`docker compose run --rm generator finalize --job tile_x-2_y+0 --draft`
+
+Check **`jobs/tile_x-2_y+0/draft/world_preview.png`**, not only the old
+`primary_pair_preview.png`. The new image shows the candidate in the same
+`dependencies_first` ordering as the atlas, with every neighboring tile
+(including both diagonal corners) and no changes to published art.
+`draft/world_preview.json` includes the covered world coordinates, the
+candidate pixel rectangle and tile render order. A dependency cycle fails
+instead of rendering a misleading preview.
